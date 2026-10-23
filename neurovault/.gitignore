@@ -1,0 +1,34 @@
+# ---------- Secrets ----------
+.env
+*.env
+!.env.example
+**/.env
+
+# ---------- Python ----------
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ---------- Vector store / generated data ----------
+chroma_db/
+Chroma_db/
+uploads/
+!uploads/.gitkeep
+*.sqlite3
+
+# ---------- Node / frontend ----------
+node_modules/
+dist/
+.vite/
+coverage/
+
+# ---------- OS / editors ----------
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
