@@ -1,0 +1,9 @@
+{
+  "name": "neurovault-backend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "NeuroVault FastAPI backend served as a platform mini-service on port 8000.",
+  "scripts": {
+    "dev": "cd /home/z/my-project/neurovault/backend && STATIC_DIR=/home/z/my-project/neurovault/frontend/dist python3 -m uvicorn app.main:app --host 127.0.0.1 --port 8000"
+  }
+}
