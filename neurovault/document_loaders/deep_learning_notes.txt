@@ -1,0 +1,43 @@
+Backpropagation is the fundamental algorithm used to train artificial neural
+networks. The method computes the gradient of the loss function with respect
+to every weight in the network by applying the chain rule backwards, layer by
+layer, from the output to the input. Forward propagation first produces a
+prediction; the loss measures the error of that prediction; backpropagation
+then propagates the error signal backwards to attribute responsibility to
+each weight. Gradient descent updates every weight by a small step opposite
+to its gradient, scaled by the learning rate.
+
+Deep networks suffer from the vanishing gradient problem. When the error
+signal passes backwards through many layers, repeated multiplication by small
+derivatives shrinks the gradient exponentially, so early layers learn
+extremely slowly or not at all. Remedies include careful weight
+initialization, normalization layers such as batch normalization, non-saturating
+activation functions like ReLU, residual connections, and gated architectures.
+
+Recurrent neural networks (RNNs) process sequences by maintaining a hidden
+state that is updated at every time step. A vanilla RNN applies the same
+weights recursively, which makes it prone to vanishing gradients over long
+sequences. Long Short-Term Memory (LSTM) networks introduce memory cells with
+input, output and forget gates that protect information across long time
+spans. Gated Recurrent Units (GRUs) simplify the LSTM by using only two gates:
+the update gate, which decides how much of the previous state is kept, and
+the reset gate, which decides how much of the previous state is ignored when
+computing the candidate state. GRUs match LSTMs on many tasks while being
+cheaper to train because they have fewer parameters.
+
+Embeddings map discrete tokens, sentences or documents into dense numeric
+vectors. In a good embedding space, semantic similarity corresponds to small
+cosine distance: related meanings end up close together even when the words
+differ. This property powers semantic search: both the query and the document
+chunks are embedded, and retrieval systems such as vector databases find the
+nearest chunk vectors for a query vector. Maximum Marginal Relevance (MMR)
+improves on plain top-k retrieval by re-ranking candidates to balance
+relevance to the query against diversity among the selected results, which
+reduces redundancy when several chunks repeat the same information.
+
+Attention mechanisms let a model weigh the relevance of every input token
+when producing a representation of another token. Self-attention computes
+query, key and value projections for each token and mixes values weighted by
+query-key compatibility. Because every token can attend to every other token
+in a single step, attention avoids the long path lengths that hurt recurrent
+models and is the core building block of the Transformer architecture.
