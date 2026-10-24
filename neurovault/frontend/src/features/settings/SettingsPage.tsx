@@ -1,8 +1,8 @@
-/** Settings — appearance, 3D, motion, sidebar, data & privacy, backend health. */
-import { Database, Eye, Gauge, Palette, Server, ShieldCheck, Trash2 } from "lucide-react";
+import { useState } from "react";
+import { Database, Eye, EyeOff, Gauge, KeyRound, Palette, Server, ShieldCheck, Trash2 } from "lucide-react";
 import { Badge, Panel, SectionTitle } from "@/components/ui/Primitives";
 import { Button } from "@/components/ui/Button";
-import { useSettings } from "@/hooks/useSettings";
+import { useSettings, type ByokProvider } from "@/hooks/useSettings";
 import { useHealth } from "@/hooks/useHealth";
 import { API_BASE_LABEL } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -10,6 +10,65 @@ import { cn } from "@/lib/utils";
 export default function SettingsPage({ onClearConversations }: { onClearConversations: () => void }) {
   const { settings, update } = useSettings();
   const { health, status } = useHealth();
+  const [provider, setProvider] = useState<ByokProvider>(settings.byokProvider || "groq");
+  const [keyInput, setKeyInput] = useState(settings.byokKey);
+  const [modelInput, setModelInput] = useState(settings.byokModel || "");
+  const [showKey, setShowKey] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  const handleKeyChange = (val: string) => {
+    setKeyInput(val);
+    const trimmed = val.trim();
+    if (trimmed.startsWith("AIza")) {
+      setProvider("gemini");
+      if (!modelInput || !modelInput.startsWith("gemini")) {
+        setModelInput("gemini-1.5-flash");
+      }
+    } else if (trimmed.startsWith("sk-") && !trimmed.startsWith("gsk_")) {
+      setProvider("openai");
+      if (!modelInput || !modelInput.startsWith("gpt-")) {
+        setModelInput("gpt-4o-mini");
+      }
+    } else if (trimmed.startsWith("gsk_")) {
+      setProvider("groq");
+      if (!modelInput || modelInput.startsWith("gpt-") || modelInput.startsWith("gemini")) {
+        setModelInput("openai/gpt-oss-120b");
+      }
+    }
+  };
+
+  const handleProviderSelect = (p: ByokProvider) => {
+    setProvider(p);
+    if (p === "gemini") {
+      if (!modelInput || !modelInput.startsWith("gemini")) {
+        setModelInput("gemini-1.5-flash");
+      }
+    } else if (p === "openai") {
+      if (!modelInput || !modelInput.startsWith("gpt-")) {
+        setModelInput("gpt-4o-mini");
+      }
+    } else {
+      if (!modelInput || modelInput.startsWith("gpt-") || modelInput.startsWith("gemini")) {
+        setModelInput("openai/gpt-oss-120b");
+      }
+    }
+  };
+
+  const handleSave = () => {
+    update({
+      byokKey: keyInput.trim(),
+      byokProvider: provider,
+      byokModel: modelInput.trim(),
+    });
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  };
+
+  const handleClear = () => {
+    setKeyInput("");
+    setModelInput("");
+    update({ byokKey: "", byokModel: "" });
+  };
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-5 p-4 sm:p-6">
@@ -89,6 +148,154 @@ export default function SettingsPage({ onClearConversations }: { onClearConversa
         </div>
       </Panel>
 
+      {/* byok api key */}
+      <Panel className="p-4">
+        <div className="mb-2 flex items-center justify-between gap-3">
+          <SectionTitle className="flex items-center gap-1.5">
+            <KeyRound className="h-3.5 w-3.5 text-[var(--nv-cyan)]" aria-hidden /> API Key & Model Access (BYOK)
+          </SectionTitle>
+          <Badge
+            tone={
+              settings.byokKey.trim()
+                ? "ok"
+                : health?.checks.llm?.configured
+                  ? "cyan"
+                  : "warn"
+            }
+          >
+            {settings.byokKey.trim()
+              ? `Custom ${settings.byokProvider === "openai" ? "OpenAI" : "Groq"} key active`
+              : health?.checks.llm?.configured
+                ? "Server key active"
+                : "No key configured"}
+          </Badge>
+        </div>
+        <p className="mb-3 text-xs leading-relaxed text-[var(--nv-text-muted)]">
+          Bring Your Own Key (BYOK) allows you to use your personal <strong>Groq</strong> (starts with <code className="font-mono text-[var(--nv-text)]">gsk_</code>) or <strong>OpenAI</strong> (starts with <code className="font-mono text-[var(--nv-text)]">sk-</code>) API key. When configured, your chat requests run directly under your personal account. Keys are stored only in this browser and transmitted securely.
+        </p>
+
+        {/* Provider selector */}
+        <div className="mb-3">
+          <p className="mb-1.5 text-xs font-medium text-[var(--nv-text)]">LLM Provider</p>
+          <div className="flex gap-2" role="group" aria-label="LLM Provider">
+            <button
+              type="button"
+              onClick={() => handleProviderSelect("groq")}
+              className={cn(
+                "flex items-center gap-1.5 rounded-xl border px-3.5 py-1.5 text-xs font-medium transition",
+                provider === "groq"
+                  ? "border-[var(--nv-cyan)] bg-[rgba(66,232,245,0.08)] text-[var(--nv-text)]"
+                  : "border-[var(--nv-border)] text-[var(--nv-text-muted)] hover:text-[var(--nv-text)]",
+              )}
+            >
+              <span>⚡ Groq (Fast)</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleProviderSelect("openai")}
+              className={cn(
+                "flex items-center gap-1.5 rounded-xl border px-3.5 py-1.5 text-xs font-medium transition",
+                provider === "openai"
+                  ? "border-[var(--nv-cyan)] bg-[rgba(66,232,245,0.08)] text-[var(--nv-text)]"
+                  : "border-[var(--nv-border)] text-[var(--nv-text-muted)] hover:text-[var(--nv-text)]",
+              )}
+            >
+              <span>🤖 OpenAI</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Model selector */}
+        <div className="mb-3">
+          <p className="mb-1.5 text-xs font-medium text-[var(--nv-text)]">Model</p>
+          <select
+            value={modelInput || (provider === "openai" ? "gpt-4o-mini" : "openai/gpt-oss-120b")}
+            onChange={(e) => setModelInput(e.target.value)}
+            className="w-full rounded-xl border border-[var(--nv-border)] bg-[rgba(10,16,28,0.4)] px-3 py-2 text-xs text-[var(--nv-text)] focus:border-[var(--nv-cyan)] focus:outline-none"
+          >
+            {provider === "groq" ? (
+              <>
+                <option value="openai/gpt-oss-120b">openai/gpt-oss-120b (Server Default)</option>
+                <option value="llama-3.3-70b-versatile">llama-3.3-70b-versatile</option>
+                <option value="mixtral-8x7b-32768">mixtral-8x7b-32768</option>
+                <option value="llama-3.1-8b-instant">llama-3.1-8b-instant</option>
+              </>
+            ) : (
+              <>
+                <option value="gpt-4o-mini">gpt-4o-mini (Recommended - Fast & Smart)</option>
+                <option value="gpt-4o">gpt-4o (Most Capable)</option>
+                <option value="gpt-3.5-turbo">gpt-3.5-turbo</option>
+              </>
+            )}
+          </select>
+        </div>
+
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <div className="relative flex-1">
+            <input
+              type={showKey ? "text" : "password"}
+              value={keyInput}
+              onChange={(e) => handleKeyChange(e.target.value)}
+              placeholder={provider === "openai" ? "sk-..." : "gsk_..."}
+              className="w-full rounded-xl border border-[var(--nv-border)] bg-[rgba(10,16,28,0.4)] px-3.5 py-2 pr-10 font-mono text-xs text-[var(--nv-text)] placeholder:text-[var(--nv-text-muted)] focus:border-[var(--nv-cyan)] focus:outline-none"
+              aria-label={`${provider.toUpperCase()} API Key`}
+              autoComplete="off"
+              spellCheck={false}
+            />
+            <button
+              type="button"
+              onClick={() => setShowKey(!showKey)}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-[var(--nv-text-muted)] transition hover:text-[var(--nv-text)]"
+              title={showKey ? "Hide key" : "Show key"}
+              aria-label={showKey ? "Hide key" : "Show key"}
+            >
+              {showKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
+          </div>
+          <div className="flex gap-2">
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={handleSave}
+            >
+              {saved ? "Saved!" : "Save Key"}
+            </Button>
+            {settings.byokKey && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleClear}
+              >
+                Clear
+              </Button>
+            )}
+          </div>
+        </div>
+
+        <div className="mt-2.5 flex items-center justify-between text-[11px] text-[var(--nv-text-muted)]">
+          <span>Need an API key?</span>
+          {provider === "openai" ? (
+            <a
+              href="https://platform.openai.com/api-keys"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-[var(--nv-cyan)] hover:underline"
+            >
+              Get an OpenAI API Key &rarr;
+            </a>
+          ) : (
+            <a
+              href="https://console.groq.com/keys"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-[var(--nv-cyan)] hover:underline"
+            >
+              Get a Groq API Key &rarr;
+            </a>
+          )}
+        </div>
+      </Panel>
+
       {/* backend */}
       <Panel className="p-4">
         <SectionTitle className="mb-3 flex items-center gap-1.5">
@@ -146,8 +353,8 @@ export default function SettingsPage({ onClearConversations }: { onClearConversa
             server or across devices.
           </li>
           <li className="flex gap-2">
-            <Eye className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--nv-violet)]" aria-hidden />
-            The frontend never sees your GROQ_API_KEY; all provider calls happen server-side.
+            <KeyRound className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--nv-violet)]" aria-hidden />
+            Server provider credentials remain strictly on the backend. Personal BYOK keys stay in your browser.
           </li>
           <li className="flex gap-2">
             <Gauge className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--nv-violet)]" aria-hidden />
