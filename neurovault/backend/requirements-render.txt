@@ -1,0 +1,23 @@
+--extra-index-url https://download.pytorch.org/whl/cpu
+
+fastapi>=0.115
+uvicorn[standard]>=0.32
+pydantic>=2.9
+pydantic-settings>=2.6
+python-multipart>=0.0.12
+python-dotenv>=1.0
+
+# RAG stack
+langchain>=0.3.7
+langchain-community>=0.3.5
+langchain-huggingface>=0.1.2
+langchain-groq>=0.2.1
+langchain-text-splitters>=0.3.2
+chromadb>=0.5.20
+sentence-transformers>=3.2
+pypdf>=5.0
+numpy
+
+# Testing & Client
+pytest>=8.3
+httpx>=0.27
