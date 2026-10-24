@@ -3,6 +3,8 @@ import { createContext, useContext, useEffect, useMemo, useState, type ReactNode
 export type Theme = "dark" | "light";
 export type MotionPref = "system" | "reduced" | "full";
 
+export type ByokProvider = "groq" | "openai" | "gemini";
+
 export interface Settings {
   theme: Theme;
   enable3D: boolean;
@@ -10,6 +12,8 @@ export interface Settings {
   sidebarCollapsed: boolean;
   showSourcePreviews: boolean;
   byokKey: string;
+  byokProvider: ByokProvider;
+  byokModel: string;
 }
 
 const DEFAULTS: Settings = {
@@ -19,6 +23,8 @@ const DEFAULTS: Settings = {
   sidebarCollapsed: false,
   showSourcePreviews: true,
   byokKey: "",
+  byokProvider: "groq",
+  byokModel: "",
 };
 
 const STORAGE_KEY = "nv.settings.v1";
