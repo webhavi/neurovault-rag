@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Database, Eye, EyeOff, Gauge, KeyRound, Palette, Server, ShieldCheck, Trash2 } from "lucide-react";
 import { Badge, Panel, SectionTitle } from "@/components/ui/Primitives";
 import { Button } from "@/components/ui/Button";
@@ -13,12 +13,24 @@ export default function SettingsPage({ onClearConversations }: { onClearConversa
   const [provider, setProvider] = useState<ByokProvider>(settings.byokProvider || "groq");
   const [keyInput, setKeyInput] = useState(settings.byokKey);
   const [modelInput, setModelInput] = useState(settings.byokModel || "");
-  const [apiUrlInput, setApiUrlInput] = useState(settings.apiUrl || "");
+  const [apiUrlInput, setApiUrlInput] = useState(() => {
+    const u = settings.apiUrl || "";
+    return u === "https://neurovault-rag.onrender.com" || u === "https://your-service.onrender.com" ? "" : u;
+  });
   const [showKey, setShowKey] = useState(false);
   const [saved, setSaved] = useState(false);
   const [apiSaved, setApiSaved] = useState(false);
   const [testingConnection, setTestingConnection] = useState(false);
   const [connectionResult, setConnectionResult] = useState<{ ok: boolean; message: string } | null>(null);
+
+  // Auto-reset placeholder Render URL if user had clicked it previously
+  useEffect(() => {
+    if (settings.apiUrl === "https://neurovault-rag.onrender.com" || settings.apiUrl === "https://your-service.onrender.com") {
+      update({ apiUrl: "" });
+      setApiUrlInput("");
+      setTimeout(() => void refresh(), 50);
+    }
+  }, [settings.apiUrl, update, refresh]);
 
   const handleKeyChange = (val: string) => {
     setKeyInput(val);
@@ -339,23 +351,25 @@ export default function SettingsPage({ onClearConversations }: { onClearConversa
           <Badge tone={status === "online" ? "ok" : status === "offline" ? "danger" : "warn"}>{status}</Badge>
         </div>
         <p className="mb-3 text-xs leading-relaxed text-[var(--nv-text-muted)]">
-          Configure where the frontend sends RAG queries, document uploads, and health checks. You can switch between your local Python backend (<code className="font-mono text-[var(--nv-text)]">http://127.0.0.1:8000</code>) or your deployed Render cloud backend (<code className="font-mono text-[var(--nv-text)]">https://neurovault-rag.onrender.com</code>).
+          The frontend automatically connects to the backend without needing any manual URL configuration. If you ever need to override the backend location, enter a custom URL below or click <strong>Reset to Automatic</strong>.
         </p>
 
         {/* API URL input */}
         <div className="mb-3">
-          <label className="mb-1.5 block text-xs font-medium text-[var(--nv-text)]">Backend API URL</label>
+          <label className="mb-1.5 block text-xs font-medium text-[var(--nv-text)]">
+            Custom Backend URL <span className="text-[var(--nv-text-muted)] font-normal">(leave blank for zero-config auto-connect)</span>
+          </label>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <input
               type="text"
               value={apiUrlInput}
               onChange={(e) => setApiUrlInput(e.target.value)}
-              placeholder="http://127.0.0.1:8000 or https://your-service.onrender.com (empty = default proxy)"
+              placeholder="Automatic (same-origin / local proxy)"
               className="w-full rounded-xl border border-[var(--nv-border)] bg-[rgba(10,16,28,0.4)] px-3.5 py-2 font-mono text-xs text-[var(--nv-text)] placeholder:text-[var(--nv-text-muted)] focus:border-[var(--nv-cyan)] focus:outline-none"
             />
             <div className="flex gap-2 shrink-0">
               <Button variant="primary" size="sm" onClick={handleSaveApiUrl}>
-                {apiSaved ? "Saved!" : "Save URL"}
+                {apiSaved ? "Saved!" : "Save"}
               </Button>
               <Button
                 variant="ghost"
@@ -365,12 +379,36 @@ export default function SettingsPage({ onClearConversations }: { onClearConversa
               >
                 {testingConnection ? "Testing..." : "Test Connection"}
               </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setApiUrlInput("");
+                  update({ apiUrl: "" });
+                  setConnectionResult(null);
+                  setTimeout(() => void refresh(), 100);
+                }}
+              >
+                Reset to Auto
+              </Button>
             </div>
           </div>
 
           {/* Quick presets */}
           <div className="mt-2.5 flex flex-wrap items-center gap-2">
-            <span className="text-[11px] text-[var(--nv-text-muted)]">Quick presets:</span>
+            <span className="text-[11px] text-[var(--nv-text-muted)]">Presets:</span>
+            <button
+              type="button"
+              onClick={() => {
+                setApiUrlInput("");
+                update({ apiUrl: "" });
+                setConnectionResult(null);
+                setTimeout(() => void refresh(), 100);
+              }}
+              className="rounded-lg border border-[var(--nv-cyan)] bg-[rgba(66,232,245,0.08)] px-2.5 py-0.5 text-[11px] font-medium text-[var(--nv-cyan)] transition"
+            >
+              ⚡ Automatic (Zero-Config)
+            </button>
             <button
               type="button"
               onClick={() => {
@@ -380,29 +418,7 @@ export default function SettingsPage({ onClearConversations }: { onClearConversa
               }}
               className="rounded-lg border border-[var(--nv-border)] px-2 py-0.5 text-[11px] text-[var(--nv-text-muted)] hover:text-[var(--nv-text)] hover:bg-[rgba(66,232,245,0.08)] transition"
             >
-              ⚡ Localhost (8000)
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setApiUrlInput("https://neurovault-rag.onrender.com");
-                update({ apiUrl: "https://neurovault-rag.onrender.com" });
-                setTimeout(() => void refresh(), 100);
-              }}
-              className="rounded-lg border border-[var(--nv-border)] px-2 py-0.5 text-[11px] text-[var(--nv-text-muted)] hover:text-[var(--nv-text)] hover:bg-[rgba(66,232,245,0.08)] transition"
-            >
-              🌐 Render Cloud
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setApiUrlInput("");
-                update({ apiUrl: "" });
-                setTimeout(() => void refresh(), 100);
-              }}
-              className="rounded-lg border border-[var(--nv-border)] px-2 py-0.5 text-[11px] text-[var(--nv-text-muted)] hover:text-[var(--nv-text)] hover:bg-[rgba(66,232,245,0.08)] transition"
-            >
-              🔄 Default (Vite Proxy / Env)
+              Direct Localhost (8000)
             </button>
           </div>
 

@@ -19,14 +19,23 @@ export function getApiBaseUrl(): string {
     const raw = typeof window !== "undefined" ? localStorage.getItem("nv.settings.v1") : null;
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (parsed.apiUrl && typeof parsed.apiUrl === "string" && parsed.apiUrl.trim()) {
-        return parsed.apiUrl.trim().replace(/\/$/, "");
+      if (parsed.apiUrl && typeof parsed.apiUrl === "string") {
+        const val = parsed.apiUrl.trim();
+        // If it was set to the placeholder render url, ignore it so it connects automatically!
+        if (val === "https://neurovault-rag.onrender.com" || val === "https://your-service.onrender.com") {
+          return "";
+        }
+        return val.replace(/\/$/, "");
       }
     }
   } catch {
     /* fallback to env */
   }
-  return ((import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "").replace(/\/$/, "");
+  let envBase = ((import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "").trim().replace(/\/$/, "");
+  if (envBase && !envBase.startsWith("http://") && !envBase.startsWith("https://") && !envBase.startsWith("/")) {
+    envBase = `https://${envBase}`;
+  }
+  return envBase;
 }
 
 // Sandbox gateway mode: a fixed extra query parameter routes /api calls to the
@@ -91,26 +100,54 @@ function toApiError(status: number, payload: unknown): ApiError {
     return new ApiError({
       status,
       code: "not_found",
-      message: `Endpoint not found (HTTP 404) at ${target}. Ensure the backend server is running and configured in Settings.`,
+      message: `Endpoint not found (HTTP 404) at ${target}. Ensure the backend server is running.`,
     });
   }
   return new ApiError({ status, code: "error", message: `Request failed (HTTP ${status}).` });
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  let res: Response;
+  const currentBase = getApiBaseUrl();
+  let res: Response | null = null;
   try {
     res = await fetch(endpointUrl(path), init);
   } catch {
-    const currentBase = getApiBaseUrl();
-    const target = currentBase || "port 8000";
+    // If an external custom URL failed, automatically fallback to relative path or localhost:8000
+    if (currentBase) {
+      for (const fallback of ["", "http://127.0.0.1:8000"]) {
+        try {
+          const testRes = await fetch(`${fallback}${path}`, init);
+          if (testRes.ok || testRes.status < 500) {
+            res = testRes;
+            // Auto-heal localStorage setting
+            try {
+              const raw = localStorage.getItem("nv.settings.v1");
+              if (raw) {
+                const parsed = JSON.parse(raw);
+                delete parsed.apiUrl;
+                localStorage.setItem("nv.settings.v1", JSON.stringify(parsed));
+              }
+            } catch {
+              /* ignore */
+            }
+            break;
+          }
+        } catch {
+          /* try next */
+        }
+      }
+    }
+  }
+
+  if (!res) {
     throw new ApiError({
       status: 0,
       code: "network_error",
       message:
-        `Cannot reach the NeuroVault backend (${target}). Ensure the API server is running or configure the Backend URL in Settings.`,
+        "Cannot reach the NeuroVault backend. Make sure the backend server is running on port 8000.",
     });
   }
+
   if (res.status === 204) return undefined as T;
   const text = await res.text();
   let payload: unknown = null;

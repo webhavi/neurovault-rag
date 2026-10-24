@@ -75,9 +75,8 @@ class Settings(BaseSettings):
 
     # --- Misc --------------------------------------------------------------
     app_version: str = "1.0.0"
-    # Optional: serve a built frontend from the API process (used for the
-    # sandbox preview; leave unset on the user's machine).
-    static_dir: str | None = None
+    # Automatically serve built frontend SPA if frontend/dist exists.
+    static_dir: str | None = "frontend/dist"
     log_level: str = "INFO"
 
     # --- Derived helpers ---------------------------------------------------

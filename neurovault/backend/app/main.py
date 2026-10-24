@@ -74,7 +74,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             content={"error": {"code": "internal_error", "message": "Unexpected server error."}},
         )
 
-    # Optional static hosting of the built SPA (used for the sandbox preview).
+    # Static hosting of the built frontend SPA
     from app.config import resolve_path
 
     static = app.state.settings.static_dir
@@ -82,11 +82,23 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         static_path = resolve_path(static)
         if static_path.is_dir():
             from fastapi.staticfiles import StaticFiles
+            from starlette.responses import FileResponse
 
-            # /preview first: the catch-all "/" mount would otherwise swallow it.
-            app.mount("/preview", StaticFiles(directory=str(static_path), html=True), name="spa-preview")
-            app.mount("/", StaticFiles(directory=str(static_path), html=True), name="spa")
-            log.info("Serving frontend from %s", static_path)
+            index_file = static_path / "index.html"
+            assets_dir = static_path / "assets"
+            if assets_dir.is_dir():
+                app.mount("/assets", StaticFiles(directory=str(assets_dir)), name="spa-assets")
+
+            @app.get("/{full_path:path}", include_in_schema=False)
+            async def serve_spa(full_path: str):
+                target = static_path / full_path
+                if full_path and target.is_file():
+                    return FileResponse(target)
+                if index_file.is_file():
+                    return FileResponse(index_file)
+                return JSONResponse(status_code=404, content={"detail": "Not found"})
+
+            log.info("Serving frontend SPA from %s", static_path)
 
     return app
 
