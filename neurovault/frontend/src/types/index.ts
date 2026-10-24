@@ -28,6 +28,8 @@ export interface ChatRequest {
   session_id?: string | null;
   history?: ChatMessagePayload[] | null;
   byok_api_key?: string | null;
+  byok_provider?: string | null;
+  byok_model?: string | null;
 }
 
 export interface SourceRef {
