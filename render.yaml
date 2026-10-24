@@ -1,0 +1,41 @@
+services:
+  # --------------------------------------------------------------------------
+  # NeuroVault Backend (FastAPI + ChromaDB + LangChain RAG)
+  # --------------------------------------------------------------------------
+  - type: web
+    name: neurovault-backend
+    runtime: python
+    region: oregon
+    plan: free
+    rootDir: neurovault/backend
+    buildCommand: pip install -r requirements-render.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: CORS_ORIGINS
+        value: "*"
+      - key: GROQ_API_KEY
+        sync: false
+
+  # --------------------------------------------------------------------------
+  # NeuroVault Frontend (React + Vite SPA)
+  # --------------------------------------------------------------------------
+  - type: web
+    name: neurovault-frontend
+    runtime: static
+    region: oregon
+    plan: free
+    rootDir: neurovault/frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: VITE_API_BASE_URL
+        fromService:
+          type: web
+          name: neurovault-backend
+          property: host
