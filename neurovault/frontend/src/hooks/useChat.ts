@@ -162,8 +162,42 @@ export function useChat() {
         .slice(-6)
         .map((m) => ({ role: m.role, content: m.content }));
 
+      // Resolve BYOK key, provider, and model from local settings if configured
+      let byokKey: string | undefined;
+      let byokProvider: string | undefined;
+      let byokModel: string | undefined;
       try {
-        const res = await api.chat({ question, session_id: targetId, history });
+        const rawSettings = localStorage.getItem("nv.settings.v1");
+        if (rawSettings) {
+          const parsed = JSON.parse(rawSettings) as {
+            byokKey?: string;
+            byokProvider?: string;
+            byokModel?: string;
+          };
+          if (parsed.byokKey && typeof parsed.byokKey === "string" && parsed.byokKey.trim()) {
+            byokKey = parsed.byokKey.trim();
+            byokProvider = parsed.byokProvider;
+            byokModel = parsed.byokModel;
+          }
+        }
+      } catch {
+        /* storage read fallback */
+      }
+
+      try {
+        const res = await api.chat(
+          {
+            question,
+            session_id: targetId,
+            history,
+            byok_api_key: byokKey,
+            byok_provider: byokProvider,
+            byok_model: byokModel,
+          },
+          byokKey,
+          byokProvider,
+          byokModel,
+        );
         patchConversation(targetId, (c) => ({
           ...c,
           messages: c.messages.map((m) =>
