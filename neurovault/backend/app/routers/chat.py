@@ -35,19 +35,28 @@ def chat(payload: ChatRequest, request: Request) -> ChatResponse:
                 "message": f"The RAG pipeline failed to initialize: {state.detail or 'unknown error'}",
             },
         )
-    byok = payload.byok_api_key or request.headers.get("x-groq-api-key")
+    byok = payload.byok_api_key or request.headers.get("x-byok-api-key") or request.headers.get("x-groq-api-key")
     if byok:
         byok = byok.strip()
-        if byok == "gsk_your_groq_api_key_here":
+        if byok in {"gsk_your_groq_api_key_here", "sk-your-openai-api-key-here"}:
             byok = None
+
+    provider = (payload.byok_provider or request.headers.get("x-byok-provider") or "").lower().strip()
+    if byok and not provider:
+        if byok.startswith("AIza"):
+            provider = "gemini"
+        elif byok.startswith("sk-") and not byok.startswith("gsk_"):
+            provider = "openai"
+        else:
+            provider = "groq"
 
     if not state.llm_configured and not byok:
         raise HTTPException(
             status_code=503,
             detail={
                 "code": "provider_not_configured",
-                "message": "Chat answers are unavailable because GROQ_API_KEY is not configured "
-                "on the server or provided in Settings (BYOK). Set it in Settings or backend .env file.",
+                "message": "Chat answers are unavailable because an LLM API key is not configured "
+                "on the server or provided in Settings (BYOK). Open Settings to set your key or configure GROQ_API_KEY in backend/.env.",
             },
         )
     if state.vector_store_state in {"missing", "empty", "error"}:
@@ -62,12 +71,19 @@ def chat(payload: ChatRequest, request: Request) -> ChatResponse:
 
     started = time.perf_counter()
     try:
-        result = rag.answer(question, byok_key=byok)
+        result = rag.answer(
+            question,
+            byok_key=byok,
+            byok_provider=provider or "groq",
+            byok_model=payload.byok_model,
+        )
     except PipelineError as exc:
         raise HTTPException(status_code=503, detail={"code": "empty_retrieval", "message": str(exc)}) from exc
     except Exception as exc:  # noqa: BLE001 - classified below
         log.exception("Chat pipeline failed")
-        status, code, message = classify_provider_error(exc)
+        status, code, message = classify_provider_error(
+            exc, is_byok=bool(byok), provider=provider or "groq"
+        )
         raise HTTPException(status_code=status, detail={"code": code, "message": message}) from exc
 
     total_ms = int((time.perf_counter() - started) * 1000)
