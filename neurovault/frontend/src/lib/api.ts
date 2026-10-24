@@ -14,7 +14,21 @@ import type {
   TraceResponse,
 } from "@/types";
 
-const RAW_BASE = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "";
+export function getApiBaseUrl(): string {
+  try {
+    const raw = typeof window !== "undefined" ? localStorage.getItem("nv.settings.v1") : null;
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed.apiUrl && typeof parsed.apiUrl === "string" && parsed.apiUrl.trim()) {
+        return parsed.apiUrl.trim().replace(/\/$/, "");
+      }
+    }
+  } catch {
+    /* fallback to env */
+  }
+  return ((import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "").replace(/\/$/, "");
+}
+
 // Sandbox gateway mode: a fixed extra query parameter routes /api calls to the
 // Python backend port through the platform gateway. Undefined in normal use.
 const GATEWAY_PORT = (import.meta.env.VITE_API_GATEWAY_PORT as string | undefined) ?? "";
@@ -32,7 +46,8 @@ export class ApiError extends Error {
 }
 
 function endpointUrl(path: string): string {
-  let url = `${RAW_BASE.replace(/\/$/, "")}${path}`;
+  const base = getApiBaseUrl();
+  let url = `${base}${path}`;
   if (GATEWAY_PORT) {
     url += (url.includes("?") ? "&" : "?") + `XTransformPort=${GATEWAY_PORT}`;
   }
@@ -71,10 +86,12 @@ function toApiError(status: number, payload: unknown): ApiError {
     return new ApiError({ status, code: "validation_error", message: first?.msg ?? "Invalid request." });
   }
   if (status === 404) {
+    const currentBase = getApiBaseUrl();
+    const target = currentBase || "port 8000 (localhost)";
     return new ApiError({
       status,
       code: "not_found",
-      message: "Endpoint not found (HTTP 404). Ensure the backend server is running on port 8000.",
+      message: `Endpoint not found (HTTP 404) at ${target}. Ensure the backend server is running and configured in Settings.`,
     });
   }
   return new ApiError({ status, code: "error", message: `Request failed (HTTP ${status}).` });
@@ -85,11 +102,13 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   try {
     res = await fetch(endpointUrl(path), init);
   } catch {
+    const currentBase = getApiBaseUrl();
+    const target = currentBase || "port 8000";
     throw new ApiError({
       status: 0,
       code: "network_error",
       message:
-        "Cannot reach the NeuroVault backend. Make sure the API server is running (port 8000), then retry.",
+        `Cannot reach the NeuroVault backend (${target}). Ensure the API server is running or configure the Backend URL in Settings.`,
     });
   }
   if (res.status === 204) return undefined as T;
@@ -106,7 +125,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       status: res.status,
       code: "invalid_response",
       message: text?.trim().startsWith("<")
-        ? "Received HTML instead of JSON. Ensure the backend server is running on port 8000."
+        ? "Received HTML instead of JSON. Ensure your Backend API URL points to the FastAPI backend (not the static frontend host)."
         : "Received an empty or invalid response from the backend.",
     });
   }
@@ -224,4 +243,4 @@ export function uploadDocument(
   });
 }
 
-export const API_BASE_LABEL = RAW_BASE || "(same origin)";
+export const API_BASE_LABEL = getApiBaseUrl() || "(same origin / default proxy)";

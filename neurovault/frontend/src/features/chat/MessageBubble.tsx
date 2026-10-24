@@ -154,16 +154,23 @@ export default function MessageBubble({
   };
 
   if (message.status === "error") {
+    const isBackendOffline =
+      message.errorText?.includes("404") ||
+      message.errorText?.toLowerCase().includes("cannot reach") ||
+      message.errorText?.includes("port 8000") ||
+      message.errorText?.includes("network_error") ||
+      message.errorText?.toLowerCase().includes("unreachable");
     const isByokRejected =
       message.errorText?.toLowerCase().includes("personal") ||
       message.errorText?.includes("byok_auth_error") ||
       message.errorText?.toLowerCase().includes("settings (byok)");
     const isApiKeyError =
-      isByokRejected ||
-      message.errorText?.includes("GROQ_API_KEY") ||
-      message.errorText?.includes("provider_not_configured") ||
-      message.errorText?.toLowerCase().includes("api key") ||
-      message.errorText?.toLowerCase().includes("rejected the");
+      !isBackendOffline &&
+      (isByokRejected ||
+        message.errorText?.includes("GROQ_API_KEY") ||
+        message.errorText?.includes("provider_not_configured") ||
+        message.errorText?.toLowerCase().includes("api key") ||
+        message.errorText?.toLowerCase().includes("rejected the"));
     const isEmptyStore =
       message.errorText?.includes("empty_vector_store") ||
       message.errorText?.includes("No documents are indexed") ||
@@ -179,14 +186,16 @@ export default function MessageBubble({
         <span
           className={cn(
             "mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg",
-            isApiKeyError
+            isApiKeyError || isBackendOffline
               ? "bg-[rgba(245,158,11,0.12)]"
               : isEmptyStore
                 ? "bg-[rgba(66,232,245,0.12)]"
                 : "bg-[rgba(248,113,113,0.12)]",
           )}
         >
-          {isApiKeyError ? (
+          {isBackendOffline ? (
+            <Server className="h-3.5 w-3.5 text-[var(--nv-warn)]" aria-hidden />
+          ) : isApiKeyError ? (
             <KeyRound className="h-3.5 w-3.5 text-[var(--nv-warn)]" aria-hidden />
           ) : isEmptyStore ? (
             <Database className="h-3.5 w-3.5 text-[var(--nv-cyan)]" aria-hidden />
@@ -197,7 +206,7 @@ export default function MessageBubble({
         <div
           className={cn(
             "max-w-[85%] rounded-2xl rounded-tl-md border px-4 py-3",
-            isApiKeyError
+            isApiKeyError || isBackendOffline
               ? "border-[rgba(245,158,11,0.35)] bg-[rgba(245,158,11,0.07)]"
               : isEmptyStore
                 ? "border-[rgba(66,232,245,0.35)] bg-[rgba(66,232,245,0.07)]"
@@ -211,10 +220,21 @@ export default function MessageBubble({
                 ? "LLM API Key Required or Rejected"
                 : isEmptyStore
                   ? "Knowledge Base Is Empty"
-                  : "The request failed."}
+                  : isBackendOffline
+                    ? "Backend Server Offline or Unreachable (HTTP 404)"
+                    : "The request failed."}
           </p>
           <p className="mt-1 break-words text-xs text-[var(--nv-text-muted)]">{message.errorText}</p>
           <div className="mt-2.5 flex flex-wrap items-center gap-2.5">
+            {isBackendOffline && (
+              <button
+                type="button"
+                onClick={() => navigate("/view/settings")}
+                className="flex items-center gap-1.5 rounded-lg border border-[var(--nv-cyan)] bg-[rgba(66,232,245,0.15)] px-3 py-1 text-xs font-semibold text-[var(--nv-cyan)] hover:bg-[rgba(66,232,245,0.25)] transition"
+              >
+                <Server className="h-3.5 w-3.5" aria-hidden /> Configure Backend URL in Settings
+              </button>
+            )}
             {isByokRejected && (
               <button
                 type="button"

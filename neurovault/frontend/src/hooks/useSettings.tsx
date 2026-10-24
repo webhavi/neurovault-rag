@@ -14,6 +14,7 @@ export interface Settings {
   byokKey: string;
   byokProvider: ByokProvider;
   byokModel: string;
+  apiUrl: string;
 }
 
 const DEFAULTS: Settings = {
@@ -25,6 +26,7 @@ const DEFAULTS: Settings = {
   byokKey: "",
   byokProvider: "groq",
   byokModel: "",
+  apiUrl: "",
 };
 
 const STORAGE_KEY = "nv.settings.v1";

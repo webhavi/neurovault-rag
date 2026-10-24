@@ -4,17 +4,21 @@ import { Badge, Panel, SectionTitle } from "@/components/ui/Primitives";
 import { Button } from "@/components/ui/Button";
 import { useSettings, type ByokProvider } from "@/hooks/useSettings";
 import { useHealth } from "@/hooks/useHealth";
-import { API_BASE_LABEL } from "@/lib/api";
+import { api, API_BASE_LABEL } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 export default function SettingsPage({ onClearConversations }: { onClearConversations: () => void }) {
   const { settings, update } = useSettings();
-  const { health, status } = useHealth();
+  const { health, status, refresh } = useHealth();
   const [provider, setProvider] = useState<ByokProvider>(settings.byokProvider || "groq");
   const [keyInput, setKeyInput] = useState(settings.byokKey);
   const [modelInput, setModelInput] = useState(settings.byokModel || "");
+  const [apiUrlInput, setApiUrlInput] = useState(settings.apiUrl || "");
   const [showKey, setShowKey] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [apiSaved, setApiSaved] = useState(false);
+  const [testingConnection, setTestingConnection] = useState(false);
+  const [connectionResult, setConnectionResult] = useState<{ ok: boolean; message: string } | null>(null);
 
   const handleKeyChange = (val: string) => {
     setKeyInput(val);
@@ -68,6 +72,36 @@ export default function SettingsPage({ onClearConversations }: { onClearConversa
     setKeyInput("");
     setModelInput("");
     update({ byokKey: "", byokModel: "" });
+  };
+
+  const handleSaveApiUrl = () => {
+    const trimmed = apiUrlInput.trim();
+    update({ apiUrl: trimmed });
+    setApiSaved(true);
+    setTimeout(() => setApiSaved(false), 2000);
+    setTimeout(() => void refresh(), 100);
+  };
+
+  const handleTestConnection = async () => {
+    setTestingConnection(true);
+    setConnectionResult(null);
+    try {
+      const trimmed = apiUrlInput.trim();
+      update({ apiUrl: trimmed });
+      const res = await api.health();
+      setConnectionResult({
+        ok: true,
+        message: `Connected successfully! Status: ${res.status}, chunks: ${res.checks.vector_store?.chunks ?? 0}, LLM: ${res.checks.llm?.model ?? "configured"}.`,
+      });
+      void refresh();
+    } catch (err) {
+      setConnectionResult({
+        ok: false,
+        message: err instanceof Error ? err.message : "Failed to connect to backend server.",
+      });
+    } finally {
+      setTestingConnection(false);
+    }
   };
 
   return (
@@ -298,16 +332,103 @@ export default function SettingsPage({ onClearConversations }: { onClearConversa
 
       {/* backend */}
       <Panel className="p-4">
-        <SectionTitle className="mb-3 flex items-center gap-1.5">
-          <Server className="h-3.5 w-3.5 text-[var(--nv-cyan)]" aria-hidden /> Backend connection
-        </SectionTitle>
-        <dl className="space-y-2 text-sm">
+        <div className="mb-2 flex items-center justify-between gap-3">
+          <SectionTitle className="flex items-center gap-1.5">
+            <Server className="h-3.5 w-3.5 text-[var(--nv-cyan)]" aria-hidden /> Backend Server & API Connection
+          </SectionTitle>
+          <Badge tone={status === "online" ? "ok" : status === "offline" ? "danger" : "warn"}>{status}</Badge>
+        </div>
+        <p className="mb-3 text-xs leading-relaxed text-[var(--nv-text-muted)]">
+          Configure where the frontend sends RAG queries, document uploads, and health checks. You can switch between your local Python backend (<code className="font-mono text-[var(--nv-text)]">http://127.0.0.1:8000</code>) or your deployed Render cloud backend (<code className="font-mono text-[var(--nv-text)]">https://neurovault-rag.onrender.com</code>).
+        </p>
+
+        {/* API URL input */}
+        <div className="mb-3">
+          <label className="mb-1.5 block text-xs font-medium text-[var(--nv-text)]">Backend API URL</label>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <input
+              type="text"
+              value={apiUrlInput}
+              onChange={(e) => setApiUrlInput(e.target.value)}
+              placeholder="http://127.0.0.1:8000 or https://your-service.onrender.com (empty = default proxy)"
+              className="w-full rounded-xl border border-[var(--nv-border)] bg-[rgba(10,16,28,0.4)] px-3.5 py-2 font-mono text-xs text-[var(--nv-text)] placeholder:text-[var(--nv-text-muted)] focus:border-[var(--nv-cyan)] focus:outline-none"
+            />
+            <div className="flex gap-2 shrink-0">
+              <Button variant="primary" size="sm" onClick={handleSaveApiUrl}>
+                {apiSaved ? "Saved!" : "Save URL"}
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleTestConnection}
+                disabled={testingConnection}
+              >
+                {testingConnection ? "Testing..." : "Test Connection"}
+              </Button>
+            </div>
+          </div>
+
+          {/* Quick presets */}
+          <div className="mt-2.5 flex flex-wrap items-center gap-2">
+            <span className="text-[11px] text-[var(--nv-text-muted)]">Quick presets:</span>
+            <button
+              type="button"
+              onClick={() => {
+                setApiUrlInput("http://127.0.0.1:8000");
+                update({ apiUrl: "http://127.0.0.1:8000" });
+                setTimeout(() => void refresh(), 100);
+              }}
+              className="rounded-lg border border-[var(--nv-border)] px-2 py-0.5 text-[11px] text-[var(--nv-text-muted)] hover:text-[var(--nv-text)] hover:bg-[rgba(66,232,245,0.08)] transition"
+            >
+              ⚡ Localhost (8000)
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setApiUrlInput("https://neurovault-rag.onrender.com");
+                update({ apiUrl: "https://neurovault-rag.onrender.com" });
+                setTimeout(() => void refresh(), 100);
+              }}
+              className="rounded-lg border border-[var(--nv-border)] px-2 py-0.5 text-[11px] text-[var(--nv-text-muted)] hover:text-[var(--nv-text)] hover:bg-[rgba(66,232,245,0.08)] transition"
+            >
+              🌐 Render Cloud
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setApiUrlInput("");
+                update({ apiUrl: "" });
+                setTimeout(() => void refresh(), 100);
+              }}
+              className="rounded-lg border border-[var(--nv-border)] px-2 py-0.5 text-[11px] text-[var(--nv-text-muted)] hover:text-[var(--nv-text)] hover:bg-[rgba(66,232,245,0.08)] transition"
+            >
+              🔄 Default (Vite Proxy / Env)
+            </button>
+          </div>
+
+          {connectionResult && (
+            <p
+              className={cn(
+                "mt-2.5 rounded-lg border p-2.5 text-xs",
+                connectionResult.ok
+                  ? "border-[rgba(34,197,94,0.3)] bg-[rgba(34,197,94,0.08)] text-[var(--nv-ok)]"
+                  : "border-[rgba(248,113,113,0.3)] bg-[rgba(248,113,113,0.08)] text-[var(--nv-danger)]",
+              )}
+            >
+              {connectionResult.message}
+            </p>
+          )}
+        </div>
+
+        <dl className="mt-4 space-y-2 border-t border-[var(--nv-border)] pt-3 text-sm">
           <div className="flex items-center justify-between gap-3">
-            <dt className="text-[var(--nv-text-muted)]">API base</dt>
-            <dd className="font-mono text-xs text-[var(--nv-text)]">{API_BASE_LABEL}</dd>
+            <dt className="text-[var(--nv-text-muted)]">Active API base</dt>
+            <dd className="font-mono text-xs text-[var(--nv-text)]">
+              {settings.apiUrl || API_BASE_LABEL}
+            </dd>
           </div>
           <div className="flex items-center justify-between gap-3">
-            <dt className="text-[var(--nv-text-muted)]">Status</dt>
+            <dt className="text-[var(--nv-text-muted)]">Backend health</dt>
             <dd>
               <Badge tone={status === "online" ? "ok" : status === "offline" ? "danger" : "warn"}>{status}</Badge>
             </dd>
