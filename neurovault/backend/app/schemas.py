@@ -28,6 +28,8 @@ class ChatRequest(BaseModel):
     session_id: Optional[str] = Field(default=None, max_length=100)
     history: Optional[list[ChatMessage]] = None
     byok_api_key: Optional[str] = Field(default=None, max_length=256)
+    byok_provider: Optional[str] = Field(default=None, max_length=50)
+    byok_model: Optional[str] = Field(default=None, max_length=100)
 
 
 class SourceRef(BaseModel):
