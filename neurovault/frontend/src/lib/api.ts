@@ -116,16 +116,32 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 export const api = {
   health: () => request<HealthResponse>("/api/health"),
 
-  chat: (body: ChatRequest, byokKey?: string) => {
+  chat: (
+    body: ChatRequest,
+    byokKey?: string,
+    byokProvider?: string,
+    byokModel?: string,
+  ) => {
     const headers: Record<string, string> = { "Content-Type": "application/json" };
     const effectiveByok = byokKey || body.byok_api_key;
+    const effectiveProvider = byokProvider || body.byok_provider;
+    const effectiveModel = byokModel || body.byok_model;
     if (effectiveByok) {
+      headers["X-Byok-Api-Key"] = effectiveByok;
       headers["X-Groq-Api-Key"] = effectiveByok;
+      if (effectiveProvider) {
+        headers["X-Byok-Provider"] = effectiveProvider;
+      }
     }
     return request<ChatResponse>("/api/chat", {
       method: "POST",
       headers,
-      body: JSON.stringify({ ...body, byok_api_key: effectiveByok || undefined }),
+      body: JSON.stringify({
+        ...body,
+        byok_api_key: effectiveByok || undefined,
+        byok_provider: effectiveProvider || undefined,
+        byok_model: effectiveModel || undefined,
+      }),
     });
   },
 
