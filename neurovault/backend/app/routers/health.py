@@ -43,8 +43,9 @@ def health(request: Request) -> HealthResponse:
                 model=settings.groq_model,
                 detail=None
                 if state.llm_configured
-                else "GROQ_API_KEY is not set on the server. Chat answers are disabled; "
-                "retrieval still works.",
+                else "Initializing LLM provider..."
+                if state.status == "initializing"
+                else "GROQ_API_KEY is not set on the server. Configure a key in Settings (BYOK) or on the server.",
             ),
             "embeddings": HealthCheck(
                 ok=state.embeddings_ready,
