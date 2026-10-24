@@ -108,10 +108,10 @@ def test_chat_byok_key_used(tmp_path, monkeypatch):
     service = build_service(settings, seed=True)
     client = make_client(service)
 
-    called_with_key = []
+    calls = []
 
-    def mock_answer(question, byok_key=None):
-        called_with_key.append(byok_key)
+    def mock_answer(question, byok_key=None, **kwargs):
+        calls.append((byok_key, kwargs.get("byok_provider"), kwargs.get("byok_model")))
         from app.services.rag_service import AnswerResult
         return AnswerResult(
             answer="Answer generated with BYOK",
@@ -119,13 +119,25 @@ def test_chat_byok_key_used(tmp_path, monkeypatch):
             chunks_retrieved=1,
             retrieval_ms=10,
             generation_ms=10,
-            model="openai/gpt-oss-120b",
+            model=kwargs.get("byok_model") or "openai/gpt-oss-120b",
         )
 
     monkeypatch.setattr(service, "answer", mock_answer)
 
+    # Groq BYOK key
     res = client.post("/api/chat", json={"question": "What is backpropagation?", "byok_api_key": "gsk_byok_123"})
     assert res.status_code == 200
-    assert called_with_key == ["gsk_byok_123"]
+    assert calls[0] == ("gsk_byok_123", "groq", None)
     assert res.json()["answer"] == "Answer generated with BYOK"
+
+    # OpenAI BYOK key with model
+    res2 = client.post("/api/chat", json={
+        "question": "What is backpropagation?",
+        "byok_api_key": "sk-proj-openai-key",
+        "byok_provider": "openai",
+        "byok_model": "gpt-4o-mini"
+    })
+    assert res2.status_code == 200
+    assert calls[1] == ("sk-proj-openai-key", "openai", "gpt-4o-mini")
+
 
