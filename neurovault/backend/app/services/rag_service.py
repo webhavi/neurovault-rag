@@ -262,22 +262,83 @@ class RAGService:
     # Chat (preserved behaviour of the original terminal loop)
     # ------------------------------------------------------------------ #
 
-    def answer(self, question: str, byok_key: Optional[str] = None) -> AnswerResult:
+    def answer(
+        self,
+        question: str,
+        byok_key: Optional[str] = None,
+        byok_provider: Optional[str] = None,
+        byok_model: Optional[str] = None,
+    ) -> AnswerResult:
         """Run the real RAG pipeline for one question, optionally using a client-provided BYOK key."""
         if self.retriever is None or self.embeddings is None:
             raise PipelineError("Retrieval pipeline is not initialized.")
 
         llm = self.llm
+        effective_model = self.settings.groq_model
+        is_using_byok = False
+        provider = "groq"
+
         if byok_key:
+            provider = (byok_provider or "").lower().strip()
+            if not provider:
+                if byok_key.startswith("AIza"):
+                    provider = "gemini"
+                elif byok_key.startswith("sk-") and not byok_key.startswith("gsk_"):
+                    provider = "openai"
+                else:
+                    provider = "groq"
+
             try:
-                from langchain_groq import ChatGroq
-                llm = ChatGroq(
-                    model=self.settings.groq_model,
-                    api_key=byok_key,
-                    timeout=self.settings.llm_timeout_s,
-                )
+                if provider in {"gemini", "google"}:
+                    from langchain_google_genai import ChatGoogleGenerativeAI
+
+                    effective_model = (
+                        byok_model.strip()
+                        if byok_model and byok_model.strip()
+                        else "gemini-1.5-flash"
+                    )
+                    llm = ChatGoogleGenerativeAI(
+                        model=effective_model,
+                        google_api_key=byok_key,
+                        timeout=self.settings.llm_timeout_s,
+                    )
+                    is_using_byok = True
+                elif provider == "openai":
+                    from langchain_openai import ChatOpenAI
+
+                    effective_model = (
+                        byok_model.strip()
+                        if byok_model and byok_model.strip()
+                        else "gpt-4o-mini"
+                    )
+                    llm = ChatOpenAI(
+                        model=effective_model,
+                        api_key=byok_key,
+                        timeout=self.settings.llm_timeout_s,
+                    )
+                    is_using_byok = True
+                else:
+                    from langchain_groq import ChatGroq
+
+                    effective_model = (
+                        byok_model.strip()
+                        if byok_model and byok_model.strip()
+                        else self.settings.groq_model
+                    )
+                    llm = ChatGroq(
+                        model=effective_model,
+                        api_key=byok_key,
+                        timeout=self.settings.llm_timeout_s,
+                    )
+                    is_using_byok = True
             except Exception as exc:  # noqa: BLE001
-                raise PipelineError(f"Failed to initialize BYOK LLM: {_safe_error(exc)}") from exc
+                if self.llm is not None:
+                    log.warning("Failed to init BYOK LLM (%s), falling back to server LLM: %s", provider, exc)
+                    llm = self.llm
+                    effective_model = self.settings.groq_model
+                    is_using_byok = False
+                else:
+                    raise PipelineError(f"Failed to initialize BYOK LLM ({provider}): {_safe_error(exc)}") from exc
 
         if llm is None:
             raise PipelineError("LLM provider is not configured.")
@@ -301,13 +362,26 @@ class RAGService:
                 chunks_retrieved=0,
                 retrieval_ms=retrieval_ms,
                 generation_ms=0,
-                model=self.settings.groq_model,
+                model=effective_model,
             )
 
         context = "\n\n".join(doc.page_content for doc in docs)
         final_prompt = prompt.invoke({"context": context, "question": question})
         t1 = time.perf_counter()
-        response = llm.invoke(final_prompt)
+        try:
+            response = llm.invoke(final_prompt)
+        except Exception as exc:
+            # If personal BYOK fails (e.g. auth rejected), but server LLM is available,
+            # gracefully fall back to server LLM so the user is never blocked!
+            if is_using_byok and self.llm is not None:
+                log.warning("Personal BYOK call failed (%s), falling back to server LLM: %s", provider, exc)
+                try:
+                    response = self.llm.invoke(final_prompt)
+                    effective_model = self.settings.groq_model
+                except Exception:
+                    raise exc
+            else:
+                raise exc
         generation_ms = int((time.perf_counter() - t1) * 1000)
 
         content = getattr(response, "content", None)
@@ -321,7 +395,7 @@ class RAGService:
             chunks_retrieved=len(docs),
             retrieval_ms=retrieval_ms,
             generation_ms=generation_ms,
-            model=self.settings.groq_model,
+            model=effective_model,
         )
 
     # ------------------------------------------------------------------ #
@@ -478,7 +552,11 @@ def _safe_error(exc: Exception) -> str:
     return text[:300]
 
 
-def classify_provider_error(exc: Exception) -> tuple[int, str, str]:
+def classify_provider_error(
+    exc: Exception,
+    is_byok: bool = False,
+    provider: str = "groq",
+) -> tuple[int, str, str]:
     """Map a pipeline/provider exception to (status_code, code, message).
 
     Keeps provider internals out of the response while giving actionable
@@ -487,12 +565,26 @@ def classify_provider_error(exc: Exception) -> tuple[int, str, str]:
     name = type(exc).__name__.lower()
     text = str(exc).lower()
     status_code = getattr(exc, "status_code", None)
+    if status_code is None and hasattr(exc, "response"):
+        status_code = getattr(exc.response, "status_code", None)
+    if status_code is None:
+        status_code = getattr(exc, "code", None)
+
+    if provider.lower() in {"gemini", "google"}:
+        provider_name = "Google Gemini"
+    elif provider.lower() == "openai":
+        provider_name = "OpenAI"
+    else:
+        provider_name = "Groq"
+
     if status_code == 429 or "rate" in name or "rate_limit" in text:
-        return 429, "rate_limited", "The LLM provider is rate-limiting requests. Please wait a moment and try again."
+        return 429, "rate_limited", f"The {provider_name} API is rate-limiting requests. Please wait a moment and try again."
     if status_code == 401 or "auth" in name or "api key" in text or "unauthorized" in text:
-        return 502, "provider_auth_error", "The LLM provider rejected the API key. Check GROQ_API_KEY on the server."
+        if is_byok:
+            return 502, "byok_auth_error", f"Your personal {provider_name} API key was rejected by the provider. Please verify or update your key in Settings (BYOK)."
+        return 502, "provider_auth_error", "The LLM provider rejected the server API key. Provide your own key in Settings (BYOK) or check GROQ_API_KEY in backend/.env."
     if "timeout" in name or "timed out" in text:
-        return 504, "provider_timeout", "The LLM provider took too long to respond. Try again in a moment."
+        return 504, "provider_timeout", f"The {provider_name} API took too long to respond. Try again in a moment."
     if "model" in text and ("not found" in text or "does not exist" in text or "decommission" in text):
-        return 502, "model_unavailable", "The configured model is not available on this Groq account. Update GROQ_MODEL."
+        return 502, "model_unavailable", f"The configured model is not available for this {provider_name} account. Please select another model in Settings."
     return 500, "pipeline_error", "The RAG pipeline failed to answer this question. Check the server logs for details."
