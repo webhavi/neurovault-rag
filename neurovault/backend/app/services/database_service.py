@@ -235,3 +235,46 @@ def save_upload(settings: Settings, filename: str, payload: bytes) -> Path:
     target = settings.uploads_path / safe_name
     target.write_bytes(payload)
     return target
+
+
+def auto_seed_empty_store(settings: Settings, rag: Any) -> int:
+    """If Chroma is empty, auto-ingest documents from documents_dir and uploads_dir."""
+    if not getattr(settings, "auto_seed_on_startup", True):
+        log.info("Auto-seed is disabled by settings.")
+        return 0
+
+    try:
+        count = int(rag.vectorstore._collection.count())
+    except Exception:
+        count = getattr(rag.state, "vector_store_chunks", 0)
+
+    if count > 0:
+        log.info("Chroma store already contains %d chunks; skipping auto-seed.", count)
+        return 0
+
+    log.info("Chroma collection is empty (0 chunks). Auto-seeding initial documents...")
+    total_added = 0
+    scan_targets = [settings.documents_path, settings.uploads_path]
+    parent_docs = (PROJECT_ROOT.parent / settings.documents_dir).resolve()
+    if parent_docs.is_dir() and parent_docs != settings.documents_path.resolve():
+        scan_targets.append(parent_docs)
+
+    seen: set[str] = set()
+    for directory in scan_targets:
+        if not directory.is_dir():
+            continue
+        for name, path in _scan_dir(directory).items():
+            if name in seen:
+                continue
+            seen.add(name)
+            try:
+                res = ingest_path(settings, rag, path)
+                added = res.get("chunks_added", 0)
+                total_added += added
+                log.info("Auto-seeded %s: %d chunks added", name, added)
+            except Exception as exc:
+                log.warning("Auto-seed skipped %s due to error: %s", name, exc)
+
+    log.info("Auto-seed completed. Total chunks added: %d", total_added)
+    return total_added
+

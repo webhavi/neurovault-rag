@@ -132,6 +132,14 @@ class RAGService:
         try:
             self._init_embeddings()
             self._init_vector_store()
+            # If the store is empty, automatically seed initial documents (ephemeral-host support)
+            if self.vectorstore is not None:
+                try:
+                    from app.services.database_service import auto_seed_empty_store
+
+                    auto_seed_empty_store(self.settings, self)
+                except Exception as seed_exc:  # noqa: BLE001
+                    log.warning("Auto-seed encountered an issue during startup: %s", seed_exc)
             self._init_retriever()
             self._init_llm()
         except Exception as exc:  # noqa: BLE001 - reported via state

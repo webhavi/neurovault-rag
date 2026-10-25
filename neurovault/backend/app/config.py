@@ -78,6 +78,7 @@ class Settings(BaseSettings):
     # Automatically serve built frontend SPA if frontend/dist exists.
     static_dir: str | None = "frontend/dist"
     log_level: str = "INFO"
+    auto_seed_on_startup: bool = True
 
     # --- Derived helpers ---------------------------------------------------
     @property

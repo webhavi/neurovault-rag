@@ -102,6 +102,7 @@ def make_settings(tmp_path: Path, **overrides: Any) -> Settings:
         "chroma_persist_directory": str(tmp_path / "chroma_db"),
         "documents_dir": str(tmp_path / "docs"),
         "uploads_dir": str(tmp_path / "uploads"),
+        "auto_seed_on_startup": False,
         "_env_file": None,  # never read the developer's real .env during tests
     }
     base.update(overrides)
