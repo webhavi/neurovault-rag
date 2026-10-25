@@ -76,7 +76,7 @@ export default function IntelligencePanel({ lastAssistant }: { lastAssistant: Ch
           </dl>
         ) : (
           <p className="rounded-xl border border-dashed border-[var(--nv-border)] p-3 text-xs text-[var(--nv-text-muted)]">
-            Config unavailable — is the backend running?
+            Connecting securely to retrieval pipeline…
           </p>
         )}
       </section>
@@ -84,7 +84,7 @@ export default function IntelligencePanel({ lastAssistant }: { lastAssistant: Ch
       {/* -------- backend -------- */}
       <section aria-label="Backend status">
         <SectionTitle className="mb-2 flex items-center gap-1.5">
-          <Server className="h-3.5 w-3.5 text-[var(--nv-cyan)]" aria-hidden /> Backend
+          <Server className="h-3.5 w-3.5 text-[var(--nv-cyan)]" aria-hidden /> Service Status
         </SectionTitle>
         <div className="space-y-1.5 rounded-xl border border-[var(--nv-border)] bg-[rgba(102,136,190,0.06)] p-3 text-xs">
           {health ? (
@@ -107,7 +107,7 @@ export default function IntelligencePanel({ lastAssistant }: { lastAssistant: Ch
               <p className="text-[10.5px] text-[var(--nv-text-muted)]">API v{health.version}</p>
             </>
           ) : (
-            <p className="text-[var(--nv-text-muted)]">Backend unreachable.</p>
+            <p className="text-[var(--nv-text-muted)]">Connecting securely…</p>
           )}
         </div>
       </section>

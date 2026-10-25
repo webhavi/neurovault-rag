@@ -14,28 +14,54 @@ import type {
   TraceResponse,
 } from "@/types";
 
+export const PRODUCTION_RENDER_BACKEND = "https://neurovault-rag.onrender.com";
+
+export function isLocalhost(): boolean {
+  if (typeof window === "undefined") return true;
+  const host = window.location.hostname;
+  return host === "localhost" || host === "127.0.0.1" || host === "[::1]" || host === "";
+}
+
 export function getApiBaseUrl(): string {
+  // 1. Environment variable override from build (e.g. Vercel Project Settings)
+  const envBase = ((import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "").trim().replace(/\/$/, "");
+  if (envBase) {
+    if (!envBase.startsWith("http://") && !envBase.startsWith("https://") && !envBase.startsWith("/")) {
+      return `https://${envBase}`;
+    }
+    return envBase;
+  }
+
+  // 2. Custom override from settings (for developer debugging only)
   try {
     const raw = typeof window !== "undefined" ? localStorage.getItem("nv.settings.v1") : null;
     if (raw) {
       const parsed = JSON.parse(raw);
       if (parsed.apiUrl && typeof parsed.apiUrl === "string") {
-        const val = parsed.apiUrl.trim();
-        // If it was set to the placeholder render url, ignore it so it connects automatically!
-        if (val === "https://neurovault-rag.onrender.com" || val === "https://your-service.onrender.com") {
-          return "";
+        const val = parsed.apiUrl.trim().replace(/\/$/, "");
+        // Clean out stale placeholders
+        if (val && val !== "https://your-service.onrender.com") {
+          // Prevent stale localhost URLs saved in browser from breaking deployed Vercel frontend
+          if (!isLocalhost() && (val.includes("localhost") || val.includes("127.0.0.1"))) {
+            // ignore localhost override on cloud deployment
+          } else {
+            return val;
+          }
         }
-        return val.replace(/\/$/, "");
       }
     }
   } catch {
-    /* fallback to env */
+    /* fallback to auto-detection */
   }
-  let envBase = ((import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "").trim().replace(/\/$/, "");
-  if (envBase && !envBase.startsWith("http://") && !envBase.startsWith("https://") && !envBase.startsWith("/")) {
-    envBase = `https://${envBase}`;
+
+  // 3. Zero-config production deployment auto-connect:
+  // When running on Vercel or any remote cloud domain, seamlessly connect to the production Render backend
+  if (!isLocalhost()) {
+    return PRODUCTION_RENDER_BACKEND;
   }
-  return envBase;
+
+  // 4. Local development: use relative path "" (Vite dev proxy forwards to http://127.0.0.1:8000)
+  return "";
 }
 
 // Sandbox gateway mode: a fixed extra query parameter routes /api calls to the
@@ -54,8 +80,8 @@ export class ApiError extends Error {
   }
 }
 
-function endpointUrl(path: string): string {
-  const base = getApiBaseUrl();
+function endpointUrl(path: string, baseOverride?: string): string {
+  const base = baseOverride !== undefined ? baseOverride : getApiBaseUrl();
   let url = `${base}${path}`;
   if (GATEWAY_PORT) {
     url += (url.includes("?") ? "&" : "?") + `XTransformPort=${GATEWAY_PORT}`;
@@ -63,8 +89,8 @@ function endpointUrl(path: string): string {
   return url;
 }
 
-/** Extract a clean, user-safe message from a FastAPI error response. */
-function toApiError(status: number, payload: unknown): ApiError {
+/** Extract a clean, user-safe message from a backend error response without exposing internal infrastructure details. */
+function toApiError(status: number, payload: unknown, isColdStart = false): ApiError {
   const anyPayload = payload as Record<string, unknown> | null;
   // FastAPI HTTPException with dict detail: {detail: {code, message}}
   const detail = anyPayload?.detail;
@@ -94,79 +120,120 @@ function toApiError(status: number, payload: unknown): ApiError {
     const first = detail[0] as { msg?: string } | undefined;
     return new ApiError({ status, code: "validation_error", message: first?.msg ?? "Invalid request." });
   }
-  if (status === 404) {
-    const currentBase = getApiBaseUrl();
-    const target = currentBase || "port 8000 (localhost)";
+
+  if (status === 502 || status === 503 || status === 504 || isColdStart) {
     return new ApiError({
-      status,
-      code: "not_found",
-      message: `Endpoint not found (HTTP 404) at ${target}. Ensure the backend server is running.`,
+      status: status || 503,
+      code: "service_waking_up",
+      message: "Waking up the service (this may take up to a minute on initial start). Please try again in a few moments.",
     });
   }
-  return new ApiError({ status, code: "error", message: `Request failed (HTTP ${status}).` });
+
+  if (status === 404) {
+    return new ApiError({
+      status: 404,
+      code: "service_unavailable",
+      message: "The AI service is temporarily unavailable. Please try again in a moment.",
+    });
+  }
+
+  return new ApiError({ status, code: "error", message: `Request could not be completed (status ${status}). Please try again.` });
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+interface RequestOptions extends RequestInit {
+  retries?: number;
+  retryDelayMs?: number;
+}
+
+async function request<T>(path: string, options?: RequestOptions): Promise<T> {
+  const isGet = !options?.method || options.method.toUpperCase() === "GET";
+  // Only retry idempotent GET queries automatically to prevent duplicate state-changing operations
+  const maxRetries = options?.retries !== undefined ? options.retries : (isGet ? 2 : 0);
+  const baseDelay = options?.retryDelayMs ?? 1500;
+
   const currentBase = getApiBaseUrl();
-  let res: Response | null = null;
-  try {
-    res = await fetch(endpointUrl(path), init);
-  } catch {
-    // If an external custom URL failed, automatically fallback to relative path or localhost:8000
-    if (currentBase) {
-      for (const fallback of ["", "http://127.0.0.1:8000"]) {
-        try {
-          const testRes = await fetch(`${fallback}${path}`, init);
-          if (testRes.ok || testRes.status < 500) {
-            res = testRes;
-            // Auto-heal localStorage setting
-            try {
-              const raw = localStorage.getItem("nv.settings.v1");
-              if (raw) {
-                const parsed = JSON.parse(raw);
-                delete parsed.apiUrl;
-                localStorage.setItem("nv.settings.v1", JSON.stringify(parsed));
-              }
-            } catch {
-              /* ignore */
-            }
-            break;
+  const fallbackBases = !isLocalhost()
+    ? [PRODUCTION_RENDER_BACKEND, ""]
+    : ["", "http://127.0.0.1:8000", PRODUCTION_RENDER_BACKEND];
+
+  let attempt = 0;
+  let lastError: unknown = null;
+  let isColdStartDetected = false;
+
+  while (attempt <= maxRetries) {
+    const targetBases = attempt === 0
+      ? [currentBase]
+      : Array.from(new Set([currentBase, ...fallbackBases]));
+
+    for (const base of targetBases) {
+      const url = endpointUrl(path, base);
+      try {
+        const res = await fetch(url, options);
+
+        // Render cold start response status codes
+        if (res.status === 502 || res.status === 503 || res.status === 504) {
+          isColdStartDetected = true;
+          if (attempt < maxRetries) {
+            break; // sleep and retry with backoff
           }
+        }
+
+        // If a static host returned 404 for relative /api/*, try the direct cloud candidate
+        if (res.status === 404 && base === "") {
+          continue;
+        }
+
+        if (res.status === 204) return undefined as T;
+        const text = await res.text();
+        let payload: unknown = null;
+        try {
+          payload = text ? JSON.parse(text) : null;
         } catch {
-          /* try next */
+          payload = null;
+        }
+
+        if (!res.ok) {
+          throw toApiError(res.status, payload, isColdStartDetected);
+        }
+
+        if (payload === null) {
+          throw new ApiError({
+            status: res.status,
+            code: "invalid_response",
+            message: "The service returned an unreadable response. Please try again.",
+          });
+        }
+
+        return payload as T;
+      } catch (err) {
+        lastError = err;
+        if (err instanceof ApiError) {
+          // If explicit application error (e.g. 400 Bad Request, BYOK auth rejection), bubble up immediately
+          if (err.status !== 502 && err.status !== 503 && err.status !== 504 && err.status !== 404) {
+            throw err;
+          }
         }
       }
     }
+
+    attempt++;
+    if (attempt <= maxRetries) {
+      const delay = baseDelay * Math.pow(2, attempt - 1);
+      await new Promise((resolve) => setTimeout(resolve, delay));
+    }
   }
 
-  if (!res) {
-    throw new ApiError({
-      status: 0,
-      code: "network_error",
-      message:
-        "Cannot reach the NeuroVault backend. Make sure the backend server is running on port 8000.",
-    });
+  if (lastError instanceof ApiError) {
+    throw lastError;
   }
 
-  if (res.status === 204) return undefined as T;
-  const text = await res.text();
-  let payload: unknown = null;
-  try {
-    payload = text ? JSON.parse(text) : null;
-  } catch {
-    payload = null;
-  }
-  if (!res.ok) throw toApiError(res.status, payload);
-  if (payload === null) {
-    throw new ApiError({
-      status: res.status,
-      code: "invalid_response",
-      message: text?.trim().startsWith("<")
-        ? "Received HTML instead of JSON. Ensure your Backend API URL points to the FastAPI backend (not the static frontend host)."
-        : "Received an empty or invalid response from the backend.",
-    });
-  }
-  return payload as T;
+  throw new ApiError({
+    status: isColdStartDetected ? 503 : 0,
+    code: isColdStartDetected ? "service_waking_up" : "network_error",
+    message: isColdStartDetected
+      ? "Waking up the service (this may take up to a minute on initial start). Please try again in a moment."
+      : "Temporarily unavailable. Please check your connection and try again.",
+  });
 }
 
 export const api = {

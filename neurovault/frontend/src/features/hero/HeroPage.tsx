@@ -55,14 +55,18 @@ export default function HeroPage({ onAsk }: HeroPageProps) {
             <Badge tone="cyan">
               <Sparkles className="h-3 w-3" aria-hidden /> RAG-powered research assistant
             </Badge>
-            <Badge tone={status === "online" ? "ok" : status === "offline" ? "danger" : "warn"}>
+            <Badge tone={status === "online" ? "ok" : "warn"}>
               <span
                 className={`h-1.5 w-1.5 rounded-full ${
-                  status === "online" ? "bg-[var(--nv-ok)]" : status === "offline" ? "bg-[var(--nv-danger)]" : "bg-[var(--nv-warn)]"
+                  status === "online" ? "bg-[var(--nv-ok)]" : "bg-[var(--nv-warn)] animate-pulse"
                 }`}
                 aria-hidden
               />
-              Backend {status}
+              {status === "online"
+                ? "Service Connected"
+                : status === "checking"
+                  ? "Connecting securely…"
+                  : "Waking up service…"}
             </Badge>
           </div>
           <h1 className="text-4xl font-bold leading-[1.08] tracking-tight text-[var(--nv-text)] sm:text-5xl lg:text-[3.4rem]">

@@ -1,10 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Database, Eye, EyeOff, Gauge, KeyRound, Palette, Server, ShieldCheck, Trash2 } from "lucide-react";
 import { Badge, Panel, SectionTitle } from "@/components/ui/Primitives";
 import { Button } from "@/components/ui/Button";
 import { useSettings, type ByokProvider } from "@/hooks/useSettings";
 import { useHealth } from "@/hooks/useHealth";
-import { api, API_BASE_LABEL } from "@/lib/api";
+import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 export default function SettingsPage({ onClearConversations }: { onClearConversations: () => void }) {
@@ -13,24 +13,13 @@ export default function SettingsPage({ onClearConversations }: { onClearConversa
   const [provider, setProvider] = useState<ByokProvider>(settings.byokProvider || "groq");
   const [keyInput, setKeyInput] = useState(settings.byokKey);
   const [modelInput, setModelInput] = useState(settings.byokModel || "");
-  const [apiUrlInput, setApiUrlInput] = useState(() => {
-    const u = settings.apiUrl || "";
-    return u === "https://neurovault-rag.onrender.com" || u === "https://your-service.onrender.com" ? "" : u;
-  });
+  const [apiUrlInput, setApiUrlInput] = useState(settings.apiUrl || "");
+  const [showAdvancedConnection, setShowAdvancedConnection] = useState(false);
   const [showKey, setShowKey] = useState(false);
   const [saved, setSaved] = useState(false);
   const [apiSaved, setApiSaved] = useState(false);
   const [testingConnection, setTestingConnection] = useState(false);
   const [connectionResult, setConnectionResult] = useState<{ ok: boolean; message: string } | null>(null);
-
-  // Auto-reset placeholder Render URL if user had clicked it previously
-  useEffect(() => {
-    if (settings.apiUrl === "https://neurovault-rag.onrender.com" || settings.apiUrl === "https://your-service.onrender.com") {
-      update({ apiUrl: "" });
-      setApiUrlInput("");
-      setTimeout(() => void refresh(), 50);
-    }
-  }, [settings.apiUrl, update, refresh]);
 
   const handleKeyChange = (val: string) => {
     setKeyInput(val);
@@ -346,101 +335,119 @@ export default function SettingsPage({ onClearConversations }: { onClearConversa
       <Panel className="p-4">
         <div className="mb-2 flex items-center justify-between gap-3">
           <SectionTitle className="flex items-center gap-1.5">
-            <Server className="h-3.5 w-3.5 text-[var(--nv-cyan)]" aria-hidden /> Backend Server & API Connection
+            <Server className="h-3.5 w-3.5 text-[var(--nv-cyan)]" aria-hidden /> AI Service Connection
           </SectionTitle>
-          <Badge tone={status === "online" ? "ok" : status === "offline" ? "danger" : "warn"}>{status}</Badge>
+          <Badge tone={status === "online" ? "ok" : "warn"}>
+            <span
+              className={`h-1.5 w-1.5 rounded-full ${
+                status === "online" ? "bg-[var(--nv-ok)]" : "bg-[var(--nv-warn)] animate-pulse"
+              }`}
+              aria-hidden
+            />
+            {status === "online" ? "Connected" : status === "checking" ? "Connecting securely…" : "Waking up service…"}
+          </Badge>
         </div>
         <p className="mb-3 text-xs leading-relaxed text-[var(--nv-text-muted)]">
-          The frontend automatically connects to the backend without needing any manual URL configuration. If you ever need to override the backend location, enter a custom URL below or click <strong>Reset to Automatic</strong>.
+          NeuroVault connects securely and automatically to the AI backend. RAG intelligence, retrieval pipelines, and embeddings are available out of the box.
         </p>
 
-        {/* API URL input */}
-        <div className="mb-3">
-          <label className="mb-1.5 block text-xs font-medium text-[var(--nv-text)]">
-            Custom Backend URL <span className="text-[var(--nv-text-muted)] font-normal">(leave blank for zero-config auto-connect)</span>
-          </label>
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-            <input
-              type="text"
-              value={apiUrlInput}
-              onChange={(e) => setApiUrlInput(e.target.value)}
-              placeholder="Automatic (same-origin / local proxy)"
-              className="w-full rounded-xl border border-[var(--nv-border)] bg-[rgba(10,16,28,0.4)] px-3.5 py-2 font-mono text-xs text-[var(--nv-text)] placeholder:text-[var(--nv-text-muted)] focus:border-[var(--nv-cyan)] focus:outline-none"
-            />
-            <div className="flex gap-2 shrink-0">
-              <Button variant="primary" size="sm" onClick={handleSaveApiUrl}>
-                {apiSaved ? "Saved!" : "Save"}
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleTestConnection}
-                disabled={testingConnection}
-              >
-                {testingConnection ? "Testing..." : "Test Connection"}
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
+        <div className="flex flex-wrap items-center gap-2 mb-3">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleTestConnection}
+            disabled={testingConnection}
+          >
+            {testingConnection ? "Testing connection…" : "Test Connection"}
+          </Button>
+          <button
+            type="button"
+            onClick={() => setShowAdvancedConnection((prev) => !prev)}
+            className="text-[11px] text-[var(--nv-text-muted)] hover:text-[var(--nv-text)] transition underline underline-offset-4"
+          >
+            {showAdvancedConnection ? "Hide developer settings" : "Advanced developer settings"}
+          </button>
+        </div>
+
+        {connectionResult && (
+          <p
+            className={cn(
+              "mb-3 rounded-lg border p-2.5 text-xs",
+              connectionResult.ok
+                ? "border-[rgba(34,197,94,0.3)] bg-[rgba(34,197,94,0.08)] text-[var(--nv-ok)]"
+                : "border-[rgba(245,158,11,0.3)] bg-[rgba(245,158,11,0.08)] text-[var(--nv-warn)]",
+            )}
+          >
+            {connectionResult.message}
+          </p>
+        )}
+
+        {showAdvancedConnection && (
+          <div className="mt-3 border-t border-[var(--nv-border)] pt-3">
+            <label className="mb-1.5 block text-xs font-medium text-[var(--nv-text)]">
+              Custom Proxy / Local Endpoint Override
+            </label>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <input
+                type="text"
+                value={apiUrlInput}
+                onChange={(e) => setApiUrlInput(e.target.value)}
+                placeholder="Leave blank for automatic zero-config connection"
+                className="w-full rounded-xl border border-[var(--nv-border)] bg-[rgba(10,16,28,0.4)] px-3.5 py-2 font-mono text-xs text-[var(--nv-text)] placeholder:text-[var(--nv-text-muted)] focus:border-[var(--nv-cyan)] focus:outline-none"
+              />
+              <div className="flex gap-2 shrink-0">
+                <Button variant="primary" size="sm" onClick={handleSaveApiUrl}>
+                  {apiSaved ? "Saved!" : "Save"}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setApiUrlInput("");
+                    update({ apiUrl: "" });
+                    setConnectionResult(null);
+                    setTimeout(() => void refresh(), 100);
+                  }}
+                >
+                  Reset to Auto
+                </Button>
+              </div>
+            </div>
+
+            <div className="mt-2.5 flex flex-wrap items-center gap-2">
+              <span className="text-[11px] text-[var(--nv-text-muted)]">Presets:</span>
+              <button
+                type="button"
                 onClick={() => {
                   setApiUrlInput("");
                   update({ apiUrl: "" });
                   setConnectionResult(null);
                   setTimeout(() => void refresh(), 100);
                 }}
+                className="rounded-lg border border-[var(--nv-cyan)] bg-[rgba(66,232,245,0.08)] px-2.5 py-0.5 text-[11px] font-medium text-[var(--nv-cyan)] transition"
               >
-                Reset to Auto
-              </Button>
+                ⚡ Automatic (Zero-Config)
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setApiUrlInput("http://127.0.0.1:8000");
+                  update({ apiUrl: "http://127.0.0.1:8000" });
+                  setTimeout(() => void refresh(), 100);
+                }}
+                className="rounded-lg border border-[var(--nv-border)] px-2 py-0.5 text-[11px] text-[var(--nv-text-muted)] hover:text-[var(--nv-text)] hover:bg-[rgba(66,232,245,0.08)] transition"
+              >
+                Direct Localhost (8000)
+              </button>
             </div>
           </div>
-
-          {/* Quick presets */}
-          <div className="mt-2.5 flex flex-wrap items-center gap-2">
-            <span className="text-[11px] text-[var(--nv-text-muted)]">Presets:</span>
-            <button
-              type="button"
-              onClick={() => {
-                setApiUrlInput("");
-                update({ apiUrl: "" });
-                setConnectionResult(null);
-                setTimeout(() => void refresh(), 100);
-              }}
-              className="rounded-lg border border-[var(--nv-cyan)] bg-[rgba(66,232,245,0.08)] px-2.5 py-0.5 text-[11px] font-medium text-[var(--nv-cyan)] transition"
-            >
-              ⚡ Automatic (Zero-Config)
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setApiUrlInput("http://127.0.0.1:8000");
-                update({ apiUrl: "http://127.0.0.1:8000" });
-                setTimeout(() => void refresh(), 100);
-              }}
-              className="rounded-lg border border-[var(--nv-border)] px-2 py-0.5 text-[11px] text-[var(--nv-text-muted)] hover:text-[var(--nv-text)] hover:bg-[rgba(66,232,245,0.08)] transition"
-            >
-              Direct Localhost (8000)
-            </button>
-          </div>
-
-          {connectionResult && (
-            <p
-              className={cn(
-                "mt-2.5 rounded-lg border p-2.5 text-xs",
-                connectionResult.ok
-                  ? "border-[rgba(34,197,94,0.3)] bg-[rgba(34,197,94,0.08)] text-[var(--nv-ok)]"
-                  : "border-[rgba(248,113,113,0.3)] bg-[rgba(248,113,113,0.08)] text-[var(--nv-danger)]",
-              )}
-            >
-              {connectionResult.message}
-            </p>
-          )}
-        </div>
+        )}
 
         <dl className="mt-4 space-y-2 border-t border-[var(--nv-border)] pt-3 text-sm">
           <div className="flex items-center justify-between gap-3">
-            <dt className="text-[var(--nv-text-muted)]">Active API base</dt>
+            <dt className="text-[var(--nv-text-muted)]">Connection mode</dt>
             <dd className="font-mono text-xs text-[var(--nv-text)]">
-              {settings.apiUrl || API_BASE_LABEL}
+              {settings.apiUrl ? "Custom Override" : "Production Cloud (Auto-connected)"}
             </dd>
           </div>
           <div className="flex items-center justify-between gap-3">

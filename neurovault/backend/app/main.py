@@ -57,7 +57,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         CORSMiddleware,
         allow_origins=app.state.settings.cors_origin_list,
         allow_credentials=False,
-        allow_methods=["GET", "POST", "OPTIONS"],
+        allow_methods=["*"],
         allow_headers=["*"],
     )
 
@@ -78,27 +78,46 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from app.config import resolve_path
 
     static = app.state.settings.static_dir
-    if static:
-        static_path = resolve_path(static)
-        if static_path.is_dir():
-            from fastapi.staticfiles import StaticFiles
-            from starlette.responses import FileResponse
+    static_path = resolve_path(static) if static else None
+    has_static = static_path and static_path.is_dir()
 
-            index_file = static_path / "index.html"
-            assets_dir = static_path / "assets"
-            if assets_dir.is_dir():
-                app.mount("/assets", StaticFiles(directory=str(assets_dir)), name="spa-assets")
+    if has_static:
+        from fastapi.staticfiles import StaticFiles
+        from starlette.responses import FileResponse
 
-            @app.get("/{full_path:path}", include_in_schema=False)
-            async def serve_spa(full_path: str):
-                target = static_path / full_path
-                if full_path and target.is_file():
-                    return FileResponse(target)
-                if index_file.is_file():
-                    return FileResponse(index_file)
-                return JSONResponse(status_code=404, content={"detail": "Not found"})
+        index_file = static_path / "index.html"
+        assets_dir = static_path / "assets"
+        if assets_dir.is_dir():
+            app.mount("/assets", StaticFiles(directory=str(assets_dir)), name="spa-assets")
 
-            log.info("Serving frontend SPA from %s", static_path)
+        @app.get("/{full_path:path}", include_in_schema=False)
+        async def serve_spa(full_path: str):
+            target = static_path / full_path
+            if full_path and target.is_file():
+                return FileResponse(target)
+            if index_file.is_file():
+                return FileResponse(index_file)
+            return JSONResponse(status_code=404, content={"detail": "Not found"})
+
+        log.info("Serving frontend SPA from %s", static_path)
+    else:
+        @app.get("/", include_in_schema=False)
+        async def root_status():
+            return JSONResponse(
+                status_code=200,
+                content={
+                    "name": "NeuroVault API",
+                    "status": "online",
+                    "version": app.state.settings.app_version,
+                    "endpoints": {
+                        "health": "/api/health",
+                        "chat": "/api/chat",
+                        "documents": "/api/documents",
+                        "retrieval": "/api/retrieval",
+                        "docs": "/docs",
+                    },
+                },
+            )
 
     return app
 

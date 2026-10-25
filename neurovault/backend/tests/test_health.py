@@ -40,3 +40,32 @@ def test_health_reports_empty_store(tmp_path):
     body = client.get("/api/health").json()
     assert body["checks"]["vector_store"]["ok"] is False
     assert body["checks"]["vector_store"]["state"] in {"empty", "missing"}
+
+
+def test_cors_allows_vercel_origin(tmp_path):
+    settings = make_settings(tmp_path)
+    service = build_service(settings, seed=True)
+    client = make_client(service)
+
+    res = client.options(
+        "/api/health",
+        headers={
+            "Origin": "https://neurovault-gwuvw2e5l-webhavi16.vercel.app",
+            "Access-Control-Request-Method": "GET",
+        },
+    )
+    assert res.status_code == 200
+    assert res.headers.get("access-control-allow-origin") == "*"
+
+
+def test_root_endpoint_returns_online_status_when_no_static(tmp_path):
+    settings = make_settings(tmp_path, static_dir=None)
+    service = build_service(settings, seed=True)
+    client = make_client(service)
+
+    res = client.get("/")
+    assert res.status_code == 200
+    body = res.json()
+    assert body["status"] == "online"
+    assert "endpoints" in body
+

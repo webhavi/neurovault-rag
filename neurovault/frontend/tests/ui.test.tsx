@@ -133,9 +133,9 @@ describe("ChatWorkspace", () => {
       updatedAt: "2025-01-01T00:00:00Z",
     };
     render(
-      <MemoryRouter>
+      withProviders(
         <ChatWorkspace conversation={convo} isSending={false} onSend={vi.fn()} onRegenerate={vi.fn()} rightOpen={false} />
-      </MemoryRouter>,
+      ),
     );
     expect(screen.getByText("Backpropagation", { selector: "strong" })).toBeInTheDocument();
     expect(screen.getByText(/retrieved sources · 1/i)).toBeInTheDocument();
@@ -153,7 +153,7 @@ describe("ChatWorkspace", () => {
       throw new Error("unused");
     });
     render(
-      <MemoryRouter>
+      withProviders(
         <ChatWorkspace
           conversation={{
             id: "c1",
@@ -169,9 +169,45 @@ describe("ChatWorkspace", () => {
           onRegenerate={vi.fn()}
           rightOpen={false}
         />
-      </MemoryRouter>,
+      ),
     );
     expect(screen.getByRole("alert")).toBeInTheDocument();
     expect(screen.getByText(/no documents are indexed yet/i)).toBeInTheDocument();
   });
+
+  it("handles cold start wake-up state with friendly UI and retry action", async () => {
+    render(
+      withProviders(
+        <ChatWorkspace
+          conversation={{
+            id: "c1",
+            title: "t",
+            messages: [
+              {
+                id: "m1",
+                role: "assistant",
+                content: "",
+                status: "error",
+                errorText: "Waking up the service (this may take up to a minute on initial start). Please try again in a few moments.",
+              },
+            ],
+            createdAt: "",
+            updatedAt: "",
+          }}
+          isSending={false}
+          onSend={vi.fn()}
+          onRegenerate={vi.fn()}
+          rightOpen={false}
+        />
+      ),
+    );
+    expect(screen.getByRole("alert")).toBeInTheDocument();
+    expect(screen.getByText(/Waking Up AI Service/i)).toBeInTheDocument();
+    expect(screen.getByText(/Waking up the service/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /retry/i })).toBeInTheDocument();
+    // Ensures internal technical details are hidden
+    expect(screen.queryByText(/port 8000/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Configure Backend URL in Settings/i)).not.toBeInTheDocument();
+  });
 });
+

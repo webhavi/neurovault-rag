@@ -69,7 +69,7 @@ class Settings(BaseSettings):
     uploads_dir: str = "uploads"
 
     # --- HTTP --------------------------------------------------------------
-    cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173,http://localhost:4173"
+    cors_origins: str = "*"
     init_timeout_s: float = 240.0
     chat_wait_ready_s: float = 120.0
 
@@ -82,7 +82,13 @@ class Settings(BaseSettings):
     # --- Derived helpers ---------------------------------------------------
     @property
     def cors_origin_list(self) -> list[str]:
-        return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+        if self.cors_origins.strip() == "*":
+            return ["*"]
+        origins = [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+        for default in ("http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:4173"):
+            if default not in origins:
+                origins.append(default)
+        return origins
 
     @property
     def allowed_ext_list(self) -> list[str]:

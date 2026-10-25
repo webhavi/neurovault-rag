@@ -154,10 +154,15 @@ export default function MessageBubble({
   };
 
   if (message.status === "error") {
-    const isBackendOffline =
+    const isWakingUp =
+      message.errorText?.toLowerCase().includes("waking up") ||
+      message.errorText?.includes("service_waking_up");
+    const isServiceUnavailable =
+      isWakingUp ||
+      message.errorText?.toLowerCase().includes("temporarily unavailable") ||
+      message.errorText?.includes("service_unavailable") ||
       message.errorText?.includes("404") ||
       message.errorText?.toLowerCase().includes("cannot reach") ||
-      message.errorText?.includes("port 8000") ||
       message.errorText?.includes("network_error") ||
       message.errorText?.toLowerCase().includes("unreachable");
     const isByokRejected =
@@ -165,7 +170,7 @@ export default function MessageBubble({
       message.errorText?.includes("byok_auth_error") ||
       message.errorText?.toLowerCase().includes("settings (byok)");
     const isApiKeyError =
-      !isBackendOffline &&
+      !isServiceUnavailable &&
       (isByokRejected ||
         message.errorText?.includes("GROQ_API_KEY") ||
         message.errorText?.includes("provider_not_configured") ||
@@ -186,14 +191,16 @@ export default function MessageBubble({
         <span
           className={cn(
             "mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg",
-            isApiKeyError || isBackendOffline
+            isApiKeyError || isServiceUnavailable
               ? "bg-[rgba(245,158,11,0.12)]"
               : isEmptyStore
                 ? "bg-[rgba(66,232,245,0.12)]"
                 : "bg-[rgba(248,113,113,0.12)]",
           )}
         >
-          {isBackendOffline ? (
+          {isWakingUp ? (
+            <RefreshCw className="h-3.5 w-3.5 text-[var(--nv-warn)] animate-spin" aria-hidden />
+          ) : isServiceUnavailable ? (
             <Server className="h-3.5 w-3.5 text-[var(--nv-warn)]" aria-hidden />
           ) : isApiKeyError ? (
             <KeyRound className="h-3.5 w-3.5 text-[var(--nv-warn)]" aria-hidden />
@@ -206,7 +213,7 @@ export default function MessageBubble({
         <div
           className={cn(
             "max-w-[85%] rounded-2xl rounded-tl-md border px-4 py-3",
-            isApiKeyError || isBackendOffline
+            isApiKeyError || isServiceUnavailable
               ? "border-[rgba(245,158,11,0.35)] bg-[rgba(245,158,11,0.07)]"
               : isEmptyStore
                 ? "border-[rgba(66,232,245,0.35)] bg-[rgba(66,232,245,0.07)]"
@@ -220,19 +227,23 @@ export default function MessageBubble({
                 ? "LLM API Key Required or Rejected"
                 : isEmptyStore
                   ? "Knowledge Base Is Empty"
-                  : isBackendOffline
-                    ? "Backend Server Offline or Unreachable (HTTP 404)"
-                    : "The request failed."}
+                  : isWakingUp
+                    ? "Waking Up AI Service…"
+                    : isServiceUnavailable
+                      ? "Service Temporarily Unavailable"
+                      : "The request failed."}
           </p>
           <p className="mt-1 break-words text-xs text-[var(--nv-text-muted)]">{message.errorText}</p>
           <div className="mt-2.5 flex flex-wrap items-center gap-2.5">
-            {isBackendOffline && (
+            {canRegenerate && (
               <button
                 type="button"
-                onClick={() => navigate("/view/settings")}
-                className="flex items-center gap-1.5 rounded-lg border border-[var(--nv-cyan)] bg-[rgba(66,232,245,0.15)] px-3 py-1 text-xs font-semibold text-[var(--nv-cyan)] hover:bg-[rgba(66,232,245,0.25)] transition"
+                onClick={onRegenerate}
+                disabled={isSending}
+                className="flex items-center gap-1.5 rounded-lg border border-[var(--nv-cyan)] bg-[rgba(66,232,245,0.15)] px-3 py-1 text-xs font-semibold text-[var(--nv-cyan)] hover:bg-[rgba(66,232,245,0.25)] transition disabled:opacity-50"
               >
-                <Server className="h-3.5 w-3.5" aria-hidden /> Configure Backend URL in Settings
+                <RefreshCw className={cn("h-3.5 w-3.5", isSending && "animate-spin")} aria-hidden />
+                {isSending ? "Connecting…" : "Retry"}
               </button>
             )}
             {isByokRejected && (
@@ -243,16 +254,6 @@ export default function MessageBubble({
                 className="flex items-center gap-1.5 rounded-lg border border-[var(--nv-cyan)] bg-[rgba(66,232,245,0.15)] px-3 py-1 text-xs font-semibold text-[var(--nv-cyan)] hover:bg-[rgba(66,232,245,0.25)] transition disabled:opacity-50"
               >
                 <Server className="h-3.5 w-3.5" aria-hidden /> Use Built-in Server Key Instead
-              </button>
-            )}
-            {canRegenerate && (
-              <button
-                type="button"
-                onClick={onRegenerate}
-                disabled={isSending}
-                className="flex items-center gap-1.5 rounded-lg border border-[var(--nv-border)] px-2.5 py-1 text-xs font-medium text-[var(--nv-text)] hover:bg-[rgba(102,136,190,0.12)] transition disabled:opacity-50"
-              >
-                <RefreshCw className="h-3 w-3" aria-hidden /> Retry
               </button>
             )}
             {isApiKeyError && (
