@@ -44,8 +44,8 @@ vi.mock("@/components/layout/TopBar", () => ({
   }),
 }));
 
-vi.mock("@/lib/api", async (importOriginal) => {
-  const mod = await importOriginal<typeof import("@/lib/api")>();
+vi.mock("@/lib/api", async () => {
+  const mod = await vi.importActual<typeof import("@/lib/api")>("@/lib/api");
   return { ...mod, api: { ...mod.api, chat: vi.fn() } };
 });
 

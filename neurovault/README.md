@@ -78,7 +78,7 @@ file_too_large`. CORS is restricted to `CORS_ORIGINS`.
 
 ## Installation (Windows PowerShell)
 
-Prerequisites: Python 3.10+, Node.js 18+, and a Groq API key.
+Prerequisites: Python 3.10+, Bun 1.4+ (or Node.js 18+), and a Groq API key.
 
 ```powershell
 cd neurovault
@@ -87,7 +87,6 @@ cd neurovault
 cd backend
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
-pip install torch --index-url https://download.pytorch.org/whl/cpu   # optional, smaller wheel
 pip install -r requirements.txt
 
 Copy-Item .env.example .env
@@ -95,14 +94,14 @@ notepad .env          # set GROQ_API_KEY=gsk_...
 
 # ---------- 2. Frontend (new terminal) ----------
 cd ..\frontend
-npm install
+bun install
 
 # ---------- 3. Run ----------
 # Terminal 1 (backend, from backend\ with venv active):
 uvicorn app.main:app --host 0.0.0.0 --port 8000
 
 # Terminal 2 (frontend, from frontend\):
-npm run dev           # → http://localhost:5173
+bun run dev           # → http://localhost:5173
 ```
 
 Open **http://localhost:5173** → the hero dashboard should show
@@ -126,8 +125,8 @@ python -c "from app.config import get_settings; from app.services.rag_service im
 pytest
 
 # frontend (from frontend\)
-npm run typecheck
-npm run test
+bun run typecheck
+bun run test
 
 # end-to-end against the real running backend (from anywhere):
 python ..\scripts\verify_e2e.py    # set NEUROVAULT_BASE_URL to override host
