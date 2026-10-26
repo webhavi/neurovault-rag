@@ -180,6 +180,25 @@ class RAGService:
         return self.state.status not in {"idle", "initializing"}
 
     def _init_embeddings(self) -> None:
+        import os
+
+        # Prefer Chroma's bundled ONNX MiniLM in constrained/cloud environments (e.g. Render free tier: 512MB RAM).
+        # PyTorch + sentence-transformers consumes ~588MB RAM which triggers Render's OOM killer (502 Bad Gateway).
+        # Chroma's ONNX runtime consumes only ~53MB RAM with identical 384-dimensional vector compatibility.
+        use_onnx = (
+            os.environ.get("RENDER") is not None
+            or os.environ.get("USE_ONNX_EMBEDDINGS", "true").lower() in {"1", "true", "yes"}
+            or getattr(self.settings, "use_onnx_embeddings", True)
+        )
+        if use_onnx:
+            try:
+                log.info("Loading Chroma ONNX MiniLM embeddings (~53MB RAM, no torch)...")
+                self.embeddings = _ChromaOnnxEmbeddings()
+                self.state.embeddings_ready = True
+                return
+            except Exception as exc:  # noqa: BLE001
+                log.warning("Chroma ONNX embeddings initialization failed (%s); trying HuggingFace...", exc)
+
         try:
             from langchain_huggingface import HuggingFaceEmbeddings
         except ImportError:
