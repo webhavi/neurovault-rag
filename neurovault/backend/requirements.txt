@@ -9,16 +9,15 @@ pydantic-settings>=2.6
 python-multipart>=0.0.12
 python-dotenv>=1.0
 
-# RAG stack (existing project technologies, preserved)
+# RAG stack (Slim profile: Chroma ONNX embeddings, no torch/HuggingFace overhead for 512MB RAM hosts)
 langchain>=0.3.7
 langchain-community>=0.3.5
-langchain-huggingface>=0.1.2
 langchain-groq>=0.2.1
 langchain-openai>=1.7.0
 langchain-google-genai>=4.4.2
 langchain-text-splitters>=0.3.2
 chromadb>=0.5.20
-sentence-transformers>=3.2
+onnxruntime>=1.19.0
 pypdf>=5.0
 numpy
 

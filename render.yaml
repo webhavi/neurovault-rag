@@ -3,10 +3,11 @@ services:
   # NeuroVault Backend (FastAPI + ChromaDB + LangChain RAG)
   # --------------------------------------------------------------------------
   - type: web
-    name: neurovault-backend
+    name: neurovault-rag
     runtime: python
     region: oregon
     plan: free
+    autoDeploy: true
     rootDir: neurovault/backend
     buildCommand: pip install -r requirements-render.txt && python -c "from chromadb.utils.embedding_functions import ONNXMiniLM_L6_V2; ONNXMiniLM_L6_V2()"
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
@@ -28,8 +29,9 @@ services:
     runtime: static
     region: oregon
     plan: free
+    autoDeploy: true
     rootDir: neurovault/frontend
-    buildCommand: npm install && npm run build
+    buildCommand: bun install && bun run build
     staticPublishPath: dist
     routes:
       - type: rewrite
@@ -39,5 +41,5 @@ services:
       - key: VITE_API_BASE_URL
         fromService:
           type: web
-          name: neurovault-backend
+          name: neurovault-rag
           property: host
