@@ -225,7 +225,10 @@ class RAGService:
         self.state.embeddings_ready = True
 
     def _init_vector_store(self) -> None:
-        from langchain_community.vectorstores import Chroma  # same wrapper as the original code
+        try:
+            from langchain_chroma import Chroma
+        except ImportError:
+            from langchain_community.vectorstores import Chroma
 
         import os
 
