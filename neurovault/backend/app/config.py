@@ -74,7 +74,7 @@ class Settings(BaseSettings):
     chat_wait_ready_s: float = 120.0
 
     # --- Misc --------------------------------------------------------------
-    app_version: str = "1.0.0"
+    app_version: str = "1.0.1"
     # Automatically serve built frontend SPA if frontend/dist exists.
     static_dir: str | None = "frontend/dist"
     log_level: str = "INFO"

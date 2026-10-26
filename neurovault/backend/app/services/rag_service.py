@@ -136,7 +136,7 @@ class RAGService:
         try:
             self._init_embeddings()
             self._init_vector_store()
-            # If the store is empty, automatically seed initial documents (ephemeral-host support)
+            # If the store is empty, automatically seed initial lightweight documents (ephemeral-host support)
             if self.vectorstore is not None:
                 try:
                     try:
@@ -154,9 +154,7 @@ class RAGService:
             self.state.status = "error"
             self.state.detail = _safe_error(exc)
             return
-        # Final status:
-        #   ready     - embeddings + store + LLM all usable
-        #   degraded  - usable for retrieval, but LLM unconfigured or store empty
+
         self.refresh_overall_status()
         log.info("RAG service initialized: status=%s", self.state.status)
 
@@ -165,15 +163,8 @@ class RAGService:
         with self.lock:
             if self.state.status == "error":
                 return
-            problems: list[str] = []
-            if self.state.vector_store_state in {"empty", "missing", "error"}:
-                problems.append("The vector store has no indexed documents.")
-            if problems:
-                self.state.status = "degraded"
-                self.state.detail = " ".join(problems)
-            else:
-                self.state.status = "ready"
-                self.state.detail = None
+            self.state.status = "ready"
+            self.state.detail = None
 
     def wait_ready(self, timeout_s: float) -> bool:
         """Block until initialization finished (any terminal state)."""
