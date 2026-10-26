@@ -1,0 +1,4 @@
+# Pyrefly language server configuration for workspace root
+search-path = ["neurovault/backend"]
+site-package-path = ["neurovault/backend/.venv/Lib/site-packages"]
+python-version = "3.11"

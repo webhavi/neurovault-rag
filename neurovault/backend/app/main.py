@@ -79,9 +79,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     static = app.state.settings.static_dir
     static_path = resolve_path(static) if static else None
-    has_static = static_path and static_path.is_dir()
-
-    if has_static:
+    if static_path is not None and static_path.is_dir():
         from fastapi.staticfiles import StaticFiles
         from starlette.responses import FileResponse
 

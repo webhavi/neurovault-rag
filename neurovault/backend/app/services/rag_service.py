@@ -22,8 +22,12 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Optional
+from pydantic import SecretStr
 
-from app.config import Settings
+try:
+    from app.config import Settings
+except ImportError:
+    from ..config import Settings
 
 log = logging.getLogger("neurovault.rag")
 
@@ -135,7 +139,10 @@ class RAGService:
             # If the store is empty, automatically seed initial documents (ephemeral-host support)
             if self.vectorstore is not None:
                 try:
-                    from app.services.database_service import auto_seed_empty_store
+                    try:
+                        from app.services.database_service import auto_seed_empty_store
+                    except ImportError:
+                        from .database_service import auto_seed_empty_store
 
                     auto_seed_empty_store(self.settings, self)
                 except Exception as seed_exc:  # noqa: BLE001
@@ -280,7 +287,7 @@ class RAGService:
             ) from exc
         self.llm = ChatGroq(
             model=self.settings.groq_model,
-            api_key=key,
+            api_key=SecretStr(key) if isinstance(key, str) else key,
             timeout=self.settings.llm_timeout_s,
         )
         self.state.llm_configured = True
@@ -340,7 +347,7 @@ class RAGService:
                     )
                     llm = ChatOpenAI(
                         model=effective_model,
-                        api_key=byok_key,
+                        api_key=SecretStr(byok_key) if isinstance(byok_key, str) else byok_key,
                         timeout=self.settings.llm_timeout_s,
                     )
                     is_using_byok = True
@@ -354,7 +361,7 @@ class RAGService:
                     )
                     llm = ChatGroq(
                         model=effective_model,
-                        api_key=byok_key,
+                        api_key=SecretStr(byok_key) if isinstance(byok_key, str) else byok_key,
                         timeout=self.settings.llm_timeout_s,
                     )
                     is_using_byok = True
@@ -438,7 +445,10 @@ class RAGService:
 
         import numpy as np
 
-        from app.services.vector_math import cosine_similarity_matrix, pca_project_3d
+        try:
+            from app.services.vector_math import cosine_similarity_matrix, pca_project_3d
+        except ImportError:
+            from .vector_math import cosine_similarity_matrix, pca_project_3d
 
         timings: dict[str, Optional[int]] = {}
         t0 = time.perf_counter()
@@ -593,7 +603,8 @@ def classify_provider_error(
     text = str(exc).lower()
     status_code = getattr(exc, "status_code", None)
     if status_code is None and hasattr(exc, "response"):
-        status_code = getattr(exc.response, "status_code", None)
+        resp_obj = getattr(exc, "response", None)
+        status_code = getattr(resp_obj, "status_code", None)
     if status_code is None:
         status_code = getattr(exc, "code", None)
 

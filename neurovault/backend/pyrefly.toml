@@ -1,0 +1,4 @@
+# Pyrefly language server configuration for backend
+search-path = ["."]
+site-package-path = [".venv/Lib/site-packages"]
+python-version = "3.11"

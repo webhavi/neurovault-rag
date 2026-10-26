@@ -1,0 +1,15 @@
+[project]
+name = "neurovault-workspace"
+version = "1.0.0"
+description = "NeuroVault RAG Workspace"
+
+[tool.pyrefly]
+search-path = ["neurovault/backend"]
+site-package-path = ["neurovault/backend/.venv/Lib/site-packages"]
+python-version = "3.11"
+
+[tool.pyright]
+extraPaths = ["neurovault/backend"]
+pythonVersion = "3.11"
+venvPath = "neurovault/backend"
+venv = ".venv"

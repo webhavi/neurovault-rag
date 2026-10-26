@@ -5,6 +5,12 @@ description = "NeuroVault RAG Backend"
 readme = "README.md"
 requires-python = ">=3.10"
 
+[tool.pyrefly]
+search-path = ["."]
+site-package-path = [".venv/Lib/site-packages"]
+python-version = "3.11"
+
 [tool.pyright]
 include = ["app", "tests"]
 extraPaths = ["."]
+
