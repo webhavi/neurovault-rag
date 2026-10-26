@@ -9,6 +9,7 @@ services:
     plan: free
     autoDeploy: true
     rootDir: neurovault/backend
+    healthCheckPath: /api/health
     buildCommand: pip install -r requirements-render.txt && python -c "from chromadb.utils.embedding_functions import ONNXMiniLM_L6_V2; ONNXMiniLM_L6_V2()"
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
     envVars:
