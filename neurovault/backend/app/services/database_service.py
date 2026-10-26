@@ -178,11 +178,19 @@ def ingest_path(settings: Settings, rag: Any, path: Path) -> dict[str, Any]:
             meta["ingested_at"] = stamp
             chunk.metadata = meta
 
-        try:
-            ids = rag.vectorstore.add_documents(chunks)
-        except Exception as exc:  # noqa: BLE001
-            log.exception("Chroma add_documents failed for %s", path.name)
-            raise IngestionError(f"Vector store rejected the document: {exc}") from exc
+        import gc
+
+        ids: list[str] = []
+        batch_size = 32
+        for i in range(0, len(chunks), batch_size):
+            batch = chunks[i : i + batch_size]
+            try:
+                batch_ids = rag.vectorstore.add_documents(batch)
+                ids.extend(batch_ids)
+            except Exception as exc:  # noqa: BLE001
+                log.exception("Chroma add_documents failed for %s (batch %d-%d)", path.name, i, i + len(batch))
+                raise IngestionError(f"Vector store rejected the document: {exc}") from exc
+            gc.collect()
 
         try:
             rag.state.vector_store_chunks = rag.vectorstore._collection.count()
@@ -259,6 +267,7 @@ def auto_seed_empty_store(settings: Settings, rag: Any) -> int:
     if parent_docs.is_dir() and parent_docs != settings.documents_path.resolve():
         scan_targets.append(parent_docs)
 
+    MAX_AUTO_SEED_FILE_BYTES = 250 * 1024  # 250 KB limit during boot auto-seeding
     seen: set[str] = set()
     for directory in scan_targets:
         if not directory.is_dir():
@@ -267,6 +276,19 @@ def auto_seed_empty_store(settings: Settings, rag: Any) -> int:
             if name in seen:
                 continue
             seen.add(name)
+            # Skip large documents during startup auto-seed to stay within cloud RAM limits (e.g. Render 512MB)
+            try:
+                size = path.stat().st_size
+                if size > MAX_AUTO_SEED_FILE_BYTES:
+                    log.info(
+                        "Auto-seed skipping large document '%s' (%.1f KB > %.1f KB limit) on startup. Available in Knowledge Library for on-demand indexing.",
+                        name,
+                        size / 1024,
+                        MAX_AUTO_SEED_FILE_BYTES / 1024,
+                    )
+                    continue
+            except Exception:
+                pass
             try:
                 res = ingest_path(settings, rag, path)
                 added = res.get("chunks_added", 0)
