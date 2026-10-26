@@ -55,8 +55,12 @@ export function getApiBaseUrl(): string {
   }
 
   // 3. Zero-config production deployment auto-connect:
-  // When running on Vercel or any remote cloud domain, seamlessly connect to the production Render backend
+  // When running on Vercel (*.vercel.app), vercel.json proxies /api/* to Render seamlessly.
+  // Using relative path "" avoids browser CORS preflight restrictions, while falling back to direct Render.
   if (!isLocalhost()) {
+    if (typeof window !== "undefined" && window.location.hostname.endsWith(".vercel.app")) {
+      return "";
+    }
     return PRODUCTION_RENDER_BACKEND;
   }
 
