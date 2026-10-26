@@ -1,4 +1,11 @@
 {
+    "python.analysis.extraPaths": [
+        "neurovault/backend"
+    ],
+    "python.autoComplete.extraPaths": [
+        "neurovault/backend"
+    ],
+    "python.defaultInterpreterPath": "${workspaceFolder}/neurovault/backend/.venv/Scripts/python.exe",
     "python-envs.defaultEnvManager": "ms-python.python:venv",
     "css.lint.unknownAtRules": "ignore"
 }

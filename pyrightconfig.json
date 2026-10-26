@@ -1,0 +1,8 @@
+{
+  "extraPaths": [
+    "neurovault/backend"
+  ],
+  "pythonVersion": "3.11",
+  "venvPath": "neurovault/backend",
+  "venv": ".venv"
+}

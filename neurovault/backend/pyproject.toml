@@ -1,0 +1,10 @@
+[project]
+name = "neurovault-backend"
+version = "1.0.0"
+description = "NeuroVault RAG Backend"
+readme = "README.md"
+requires-python = ">=3.10"
+
+[tool.pyright]
+include = ["app", "tests"]
+extraPaths = ["."]
