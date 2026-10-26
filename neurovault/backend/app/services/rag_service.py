@@ -242,7 +242,7 @@ class RAGService:
         # Verify the store can actually be queried - a directory existing is
         # NOT proof of a working database.
         try:
-            count = int(self.vectorstore._collection.count())  # noqa: SLF001 - official client object
+            count = self.vectorstore._collection.count()  # noqa: SLF001 - official client object
         except Exception as exc:  # noqa: BLE001
             self.state.vector_store_state = "error"
             raise PipelineError(f"Chroma collection is not queryable: {_safe_error(exc)}") from exc

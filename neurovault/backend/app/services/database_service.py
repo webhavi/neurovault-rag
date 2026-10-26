@@ -185,7 +185,7 @@ def ingest_path(settings: Settings, rag: Any, path: Path) -> dict[str, Any]:
             raise IngestionError(f"Vector store rejected the document: {exc}") from exc
 
         try:
-            rag.state.vector_store_chunks = int(rag.vectorstore._collection.count())
+            rag.state.vector_store_chunks = rag.vectorstore._collection.count()
         except Exception:
             rag.state.vector_store_chunks += len(ids)
 
@@ -244,7 +244,7 @@ def auto_seed_empty_store(settings: Settings, rag: Any) -> int:
         return 0
 
     try:
-        count = int(rag.vectorstore._collection.count())
+        count = rag.vectorstore._collection.count()
     except Exception:
         count = getattr(rag.state, "vector_store_chunks", 0)
 
