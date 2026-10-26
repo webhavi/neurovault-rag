@@ -18,7 +18,7 @@ def health(request: Request) -> HealthResponse:
 
     store_ok = state.vector_store_state == "ready"
     overall = state.status
-    if overall == "ready" and (not state.llm_configured or state.vector_store_state != "ready"):
+    if overall == "ready" and state.vector_store_state != "ready":
         overall = "degraded"
 
     return HealthResponse(
@@ -38,14 +38,14 @@ def health(request: Request) -> HealthResponse:
                 else state.detail,
             ),
             "llm": HealthCheck(
-                ok=state.llm_configured,
+                ok=True,
                 configured=state.llm_configured,
-                model=settings.groq_model,
+                model=settings.groq_model if state.llm_configured else "BYOK (Client-Provided)",
                 detail=None
                 if state.llm_configured
-                else "Initializing LLM provider..."
+                else "Initializing..."
                 if state.status == "initializing"
-                else "GROQ_API_KEY is not set on the server. Configure a key in Settings (BYOK) or on the server.",
+                else "BYOK mode active: Set your personal key in Settings (Groq, OpenAI, or Gemini).",
             ),
             "embeddings": HealthCheck(
                 ok=state.embeddings_ready,

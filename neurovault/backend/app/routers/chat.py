@@ -55,8 +55,7 @@ def chat(payload: ChatRequest, request: Request) -> ChatResponse:
             status_code=503,
             detail={
                 "code": "provider_not_configured",
-                "message": "Chat answers are unavailable because an LLM API key is not configured "
-                "on the server or provided in Settings (BYOK). Open Settings to set your key or configure GROQ_API_KEY in backend/.env.",
+                "message": "Chat answers require an API key. Please set your personal API key in Settings (BYOK: Groq, OpenAI, or Gemini).",
             },
         )
     if state.vector_store_state in {"missing", "empty", "error"}:

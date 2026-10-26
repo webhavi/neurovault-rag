@@ -19,8 +19,6 @@ services:
         value: "*"
       - key: USE_ONNX_EMBEDDINGS
         value: "true"
-      - key: GROQ_API_KEY
-        sync: false
 
   # --------------------------------------------------------------------------
   # NeuroVault Frontend (React + Vite SPA)

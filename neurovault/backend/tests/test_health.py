@@ -20,14 +20,15 @@ def test_health_ready_with_seeded_store(tmp_path):
     assert body["checks"]["embeddings"]["ok"] is True
 
 
-def test_health_degraded_without_api_key(tmp_path):
+def test_health_without_api_key_ready_in_byok_mode(tmp_path):
     settings = make_settings(tmp_path, groq_api_key=None)
     service = build_service(settings, seed=True)
     client = make_client(service)
 
     body = client.get("/api/health").json()
-    assert body["status"] == "degraded"
+    assert body["status"] == "ready"
     assert body["checks"]["llm"]["configured"] is False
+    assert "BYOK" in body["checks"]["llm"]["model"]
     # The health payload must never contain the key value itself.
     assert "test-key" not in str(body)
 

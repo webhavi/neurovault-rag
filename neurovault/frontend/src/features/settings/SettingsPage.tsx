@@ -490,14 +490,16 @@ export default function SettingsPage({ onClearConversations }: { onClearConversa
               <div className="flex items-center justify-between gap-3">
                 <dt className="text-[var(--nv-text-muted)]">LLM</dt>
                 <dd className="break-all text-right text-xs text-[var(--nv-text)]">
-                  {health.checks.llm?.model} · {health.checks.llm?.configured ? "configured" : "GROQ_API_KEY missing"}
+                  {settings.byokKey
+                    ? `BYOK Active (${settings.byokProvider.toUpperCase()})`
+                    : (health.checks.llm?.configured ? health.checks.llm.model : "BYOK Mode (Client Key)")}
                 </dd>
               </div>
             </>
           )}
         </dl>
-        {health?.checks.llm?.detail && (
-          <p className="mt-3 rounded-lg border border-[rgba(251,191,36,0.3)] bg-[rgba(251,191,36,0.06)] p-2.5 text-xs text-[var(--nv-warn)]">
+        {health?.checks.llm?.detail && !settings.byokKey && (
+          <p className="mt-3 rounded-lg border border-[rgba(66,232,245,0.3)] bg-[rgba(66,232,245,0.06)] p-2.5 text-xs text-[var(--nv-cyan)]">
             {health.checks.llm.detail}
           </p>
         )}

@@ -166,8 +166,6 @@ class RAGService:
             if self.state.status == "error":
                 return
             problems: list[str] = []
-            if not self.state.llm_configured:
-                problems.append("LLM provider is not configured (GROQ_API_KEY missing).")
             if self.state.vector_store_state in {"empty", "missing", "error"}:
                 problems.append("The vector store has no indexed documents.")
             if problems:
@@ -276,7 +274,7 @@ class RAGService:
     def _init_llm(self) -> None:
         key = (self.settings.groq_api_key or "").strip()
         if not key or key == "gsk_your_groq_api_key_here":
-            log.warning("GROQ_API_KEY is not set - LLM features disabled")
+            log.info("No server GROQ_API_KEY set; running in client BYOK mode.")
             self.state.llm_configured = False
             return
         try:
