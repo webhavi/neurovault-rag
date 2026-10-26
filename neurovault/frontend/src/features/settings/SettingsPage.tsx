@@ -446,8 +446,26 @@ export default function SettingsPage({ onClearConversations }: { onClearConversa
         <dl className="mt-4 space-y-2 border-t border-[var(--nv-border)] pt-3 text-sm">
           <div className="flex items-center justify-between gap-3">
             <dt className="text-[var(--nv-text-muted)]">Connection mode</dt>
-            <dd className="font-mono text-xs text-[var(--nv-text)]">
-              {settings.apiUrl ? "Custom Override" : "Production Cloud (Auto-connected)"}
+            <dd className="flex items-center gap-2 font-mono text-xs text-[var(--nv-text)]">
+              {settings.apiUrl ? (
+                <>
+                  <span className="text-[var(--nv-warn)] font-sans font-medium">Custom Override</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      update({ apiUrl: "" });
+                      setApiUrlInput("");
+                      setConnectionResult(null);
+                      setTimeout(() => void refresh(), 100);
+                    }}
+                    className="rounded-md border border-[var(--nv-cyan)] bg-[rgba(66,232,245,0.08)] px-2 py-0.5 font-sans text-[11px] font-medium text-[var(--nv-cyan)] hover:bg-[rgba(66,232,245,0.16)] transition"
+                  >
+                    Reset to Auto
+                  </button>
+                </>
+              ) : (
+                <span className="text-[var(--nv-ok)] font-sans font-medium">Production Cloud (Auto-connected)</span>
+              )}
             </dd>
           </div>
           <div className="flex items-center justify-between gap-3">

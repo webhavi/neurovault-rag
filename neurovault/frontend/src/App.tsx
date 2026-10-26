@@ -1,14 +1,15 @@
-import { useCallback, useState } from "react";
+import { Suspense, lazy, useCallback, useState } from "react";
 import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { AnimatePresence, MotionConfig, motion } from "framer-motion";
 import Sidebar, { type ViewKey } from "@/components/layout/Sidebar";
 import TopBar, { useStats } from "@/components/layout/TopBar";
 import HeroPage from "@/features/hero/HeroPage";
 import ChatWorkspace from "@/features/chat/ChatWorkspace";
-import KnowledgePage from "@/features/knowledge/KnowledgePage";
-import RetrievalPage from "@/features/retrieval/RetrievalPage";
-import EmbeddingSpacePage from "@/features/embeddings/EmbeddingSpacePage";
-import SettingsPage from "@/features/settings/SettingsPage";
+
+const KnowledgePage = lazy(() => import("@/features/knowledge/KnowledgePage"));
+const RetrievalPage = lazy(() => import("@/features/retrieval/RetrievalPage"));
+const EmbeddingSpacePage = lazy(() => import("@/features/embeddings/EmbeddingSpacePage"));
+const SettingsPage = lazy(() => import("@/features/settings/SettingsPage"));
 import { SettingsProvider } from "@/hooks/useSettings";
 import { ToastProvider } from "@/hooks/useToasts";
 import { useChat } from "@/hooks/useChat";
@@ -85,24 +86,32 @@ function Shell() {
             transition={{ duration: 0.18, ease: "easeOut" }}
             className="flex min-h-0 flex-1 flex-col"
           >
-            {currentView === "home" && <HeroPage onAsk={askFromHero} />}
-            {currentView === "chat" && (
-              <ChatWorkspace
-                conversation={chat.active}
-                isSending={chat.isSending}
-                onSend={(q) => void chat.send(q)}
-                onRegenerate={() => void chat.regenerate()}
-                rightOpen={rightOpen}
-              />
-            )}
-            {currentView === "knowledge" && <div className="overflow-y-auto"><KnowledgePage /></div>}
-            {currentView === "retrieval" && <div className="overflow-y-auto"><RetrievalPage /></div>}
-            {currentView === "embeddings" && <EmbeddingSpacePage />}
-            {currentView === "settings" && (
-              <div className="overflow-y-auto">
-                <SettingsPage onClearConversations={chat.clearAll} />
-              </div>
-            )}
+            <Suspense
+              fallback={
+                <div className="flex flex-1 items-center justify-center p-12 text-xs text-[var(--nv-text-muted)] animate-pulse">
+                  Loading view…
+                </div>
+              }
+            >
+              {currentView === "home" && <HeroPage onAsk={askFromHero} />}
+              {currentView === "chat" && (
+                <ChatWorkspace
+                  conversation={chat.active}
+                  isSending={chat.isSending}
+                  onSend={(q) => void chat.send(q)}
+                  onRegenerate={() => void chat.regenerate()}
+                  rightOpen={rightOpen}
+                />
+              )}
+              {currentView === "knowledge" && <div className="overflow-y-auto"><KnowledgePage /></div>}
+              {currentView === "retrieval" && <div className="overflow-y-auto"><RetrievalPage /></div>}
+              {currentView === "embeddings" && <EmbeddingSpacePage />}
+              {currentView === "settings" && (
+                <div className="overflow-y-auto">
+                  <SettingsPage onClearConversations={chat.clearAll} />
+                </div>
+              )}
+            </Suspense>
           </motion.main>
         </AnimatePresence>
       </div>

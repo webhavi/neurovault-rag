@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import type { HealthResponse } from "@/types";
 
-const POLL_MS = 12_000;
+const POLL_INTERVAL_FAST = 2_500;
+const POLL_INTERVAL_STEADY = 15_000;
 
 /** Polls backend health; exposes a stable connection summary for the UI. */
 export function useHealth() {
@@ -25,11 +26,28 @@ export function useHealth() {
 
   useEffect(() => {
     void refresh();
-    timer.current = window.setInterval(() => void refresh(), POLL_MS);
-    return () => {
-      if (timer.current) window.clearInterval(timer.current);
+
+    const scheduleNext = () => {
+      const isConnected = reachable === true && health?.status === "ready";
+      const interval = isConnected ? POLL_INTERVAL_STEADY : POLL_INTERVAL_FAST;
+      timer.current = window.setTimeout(async () => {
+        await refresh();
+        scheduleNext();
+      }, interval);
     };
-  }, [refresh]);
+
+    scheduleNext();
+
+    const onFocus = () => void refresh();
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onFocus);
+
+    return () => {
+      if (timer.current) window.clearTimeout(timer.current);
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onFocus);
+    };
+  }, [refresh, reachable, health?.status]);
 
   const status: "online" | "degraded" | "offline" | "checking" =
     reachable === null || loading
